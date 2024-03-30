@@ -16,6 +16,9 @@ enum class EWeaponState : uint8
 	EWS_MAX UMETA(DisplayName = "DefaultMax")
 };
 
+/**
+ *
+ */
 UCLASS()
 class BLASTER_API AWeapon : public AActor
 {
@@ -26,6 +29,45 @@ public:
 
 	void ShowPickupWidget(bool bShowWidget);
 	virtual void Fire(const FVector& HitTarget);
+
+	/**
+	 * Textures for crosshairs
+	 */
+
+	UPROPERTY(EditAnywhere, Category = "Crosshairs")
+	class UTexture2D* CrosshairsCenter;
+
+	UPROPERTY(EditAnywhere, Category = "Crosshairs")
+	class UTexture2D* CrosshairsLeft;
+
+	UPROPERTY(EditAnywhere, Category = "Crosshairs")
+	class UTexture2D* CrosshairsRight;
+
+	UPROPERTY(EditAnywhere, Category = "Crosshairs")
+	class UTexture2D* CrosshairsTop;
+
+	UPROPERTY(EditAnywhere, Category = "Crosshairs")
+	class UTexture2D* CrosshairsBottom;
+
+	/*
+	 * Zoomed FOV While Aiming
+	 */
+
+	UPROPERTY(EditAnywhere)
+	float ZoomedFOV = 30.0f;
+
+	UPROPERTY(EditAnywhere)
+	float ZoomInterpSpeed = 20.0f;
+
+	/*
+	 * Automatic Fire
+	 */
+
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	float FireDelay = 0.1f;
+
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	bool bAutomatic = true;
 
 protected:
 	virtual void BeginPlay() override;
@@ -66,5 +108,7 @@ public:
 	void SetWeaponState(EWeaponState State);
 	USphereComponent* GetAreaSphere() const {return AreaSphere;}
 	USkeletalMeshComponent* GetWeaponMesh() const {return WeaponMesh;}
+	float GetZoomedFOV() const {return ZoomedFOV;};
+	float GetZoomInterpSpeed() const {return ZoomInterpSpeed;}
 
 };
