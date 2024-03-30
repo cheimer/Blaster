@@ -21,6 +21,8 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void PostInitializeComponents() override;
 
+	void PlayFireMontage(bool bAiming);
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -31,6 +33,7 @@ protected:
 	void AimButtonPressedAndReleased(const FInputActionValue& Value);
 	void AimOffSet(float DeltaTime);
 	virtual void Jump() override;
+	void FireButtonPressedAndReleased(const FInputActionValue& Value);
 
 	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
 	TObjectPtr<class UInputMappingContext> PlayerInputMapping;
@@ -52,6 +55,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
 	TObjectPtr<class UInputAction> AimAction;
+
+	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
+	TObjectPtr<class UInputAction> FireAction;
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
@@ -82,6 +88,9 @@ private:
 
 	ETurningInPlace TurningInPlace;
 	void TurnInPlace(float DeltaTime);
+
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	class UAnimMontage* FireWeaponMontage;
 
 public:
 	void SetOverlappingWeapon(AWeapon* Weapon);
