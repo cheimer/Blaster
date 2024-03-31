@@ -14,13 +14,21 @@
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/WidgetComponent.h"
+#include "GameMode/BlasterGameMode.h"
+#include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Net/UnrealNetwork.h"
+#include "Particles/ParticleSystemComponent.h"
+#include "PlayerController/BlasterPlayerController.h"
+#include "PlayerState/BlasterPlayerState.h"
 #include "Weapon/Weapon.h"
 
 ABlasterCharacter::ABlasterCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	NetUpdateFrequency = 66.0f;
+	MinNetUpdateFrequency = 33.0f;
+	SpawnCollisionHandlingMethod = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(GetMesh());
@@ -39,6 +47,8 @@ ABlasterCharacter::ABlasterCharacter()
 	Combat = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComponent"));
 	Combat->SetIsReplicated(true);
 
+	DissolveTimeLine = CreateDefaultSubobject<UTimelineComponent>(TEXT("DissolveTimelineComponent"));
+
 	bUseControllerRotationYaw = false;
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->NavAgentProps.bCanCrouch = true;
@@ -51,8 +61,6 @@ ABlasterCharacter::ABlasterCharacter()
 	GetMesh()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 
 	TurningInPlace = ETurningInPlace::ETIP_NotTurning;
-	NetUpdateFrequency = 66.0f;
-	MinNetUpdateFrequency = 33.0f;
 }
 
 void ABlasterCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -60,14 +68,17 @@ void ABlasterCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME_CONDITION(ABlasterCharacter, OverlappingWeapon, COND_OwnerOnly);
+	DOREPLIFETIME(ABlasterCharacter, Health);
 }
 
-void ABlasterCharacter::OnRep_ReplicatedMovement()
+void ABlasterCharacter::PostInitializeComponents()
 {
-	Super::OnRep_ReplicatedMovement();
+	Super::PostInitializeComponents();
 
-	SimProxiesTurn();
-	TimeSinceLastMovementReplication = 0.0f;
+	if(Combat)
+	{
+		Combat->Character = this;
+	}
 }
 
 void ABlasterCharacter::BeginPlay()
@@ -83,6 +94,13 @@ void ABlasterCharacter::BeginPlay()
 		{
 			Subsystem->AddMappingContext(PlayerInputMapping, 0);
 		}
+	}
+
+	UpdateHUDHealth();
+
+	if(HasAuthority())
+	{
+		OnTakeAnyDamage.AddDynamic(this, &ThisClass::ReceiveDamage);
 	}
 	
 }
@@ -105,6 +123,20 @@ void ABlasterCharacter::Tick(float DeltaTime)
 		CalculateAO_Pitch();
 	}
 	HideCameraIfCharacterClose();
+	PollInit();
+}
+
+void ABlasterCharacter::PollInit()
+{
+	if(BlasterPlayerState == nullptr)
+	{
+		BlasterPlayerState = GetPlayerState<ABlasterPlayerState>();
+		if(BlasterPlayerState)
+		{
+			BlasterPlayerState->AddToScore(0.0f);
+			BlasterPlayerState->AddToDefeats(0);
+		}
+	}
 }
 
 void ABlasterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -144,14 +176,71 @@ void ABlasterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 	}
 }
 
-void ABlasterCharacter::PostInitializeComponents()
+void ABlasterCharacter::Destroyed()
 {
-	Super::PostInitializeComponents();
+	Super::Destroyed();
 
-	if(Combat)
+	if(EliBotComponent)
 	{
-		Combat->Character = this;
+		EliBotComponent->DestroyComponent();
 	}
+}
+
+void ABlasterCharacter::Eliminated()
+{
+	if(Combat && Combat->EquippedWeapon)
+	{
+		Combat->EquippedWeapon->Dropped();
+	}
+	MultiEliminated();
+
+	GetWorldTimerManager().SetTimer(EliminatedTimer, this, &ThisClass::EliminatedTimerFinished, EliminatedDelay);
+}
+
+void ABlasterCharacter::MultiEliminated_Implementation()
+{
+	bEliminated = true;
+	PlayEliminatedMontage();
+
+	// Start Dissolve Effect
+	if(DissolveMaterialInstance)
+	{
+		DynamicDissolveMaterialInstance = UMaterialInstanceDynamic::Create(DissolveMaterialInstance, this);
+
+		GetMesh()->SetMaterial(0, DynamicDissolveMaterialInstance);
+		DynamicDissolveMaterialInstance->SetScalarParameterValue(TEXT("Dissolve"), 0.55f);
+		DynamicDissolveMaterialInstance->SetScalarParameterValue(TEXT("Glow"), 200.0f);
+	}
+	StartDissolve();
+
+	// Disable Character Movement
+	GetCharacterMovement()->DisableMovement();
+	GetCharacterMovement()->StopMovementImmediately();
+	if(BlasterPlayerController)
+	{
+		BlasterPlayerController->DisableInput(BlasterPlayerController);
+	}
+
+	// Disable Collision
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	// Spawn Eli bot
+	if(EliBotEffect)
+	{
+		FVector EliBotSpawnPoint(GetActorLocation().X, GetActorLocation().Y, GetActorLocation().Z + 200.0f);
+		EliBotComponent = UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), EliBotEffect, EliBotSpawnPoint, GetActorRotation());
+	}
+}
+
+void ABlasterCharacter::EliminatedTimerFinished()
+{
+	ABlasterGameMode* BlasterGameMode = GetWorld()->GetAuthGameMode<ABlasterGameMode>();
+	if(BlasterGameMode)
+	{
+		BlasterGameMode->RequestRespawn(this, GetController());
+	}
+
 }
 
 void ABlasterCharacter::PlayFireMontage(bool bAiming)
@@ -181,6 +270,24 @@ void ABlasterCharacter::PlayHitReactMontage()
 		AnimInstance->Montage_JumpToSection(SectionName);
 	}
 
+}
+
+void ABlasterCharacter::PlayEliminatedMontage()
+{
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if(AnimInstance && EliminatedMontage)
+	{
+		AnimInstance->Montage_Play(EliminatedMontage);
+	}
+
+}
+
+void ABlasterCharacter::OnRep_ReplicatedMovement()
+{
+	Super::OnRep_ReplicatedMovement();
+
+	SimProxiesTurn();
+	TimeSinceLastMovementReplication = 0.0f;
 }
 
 void ABlasterCharacter::MoveForwardRight(const FInputActionValue& Value)
@@ -265,6 +372,22 @@ void ABlasterCharacter::AimButtonPressedAndReleased(const FInputActionValue& Val
 	}
 }
 
+void ABlasterCharacter::FireButtonPressedAndReleased(const FInputActionValue& Value)
+{
+	bool bIsPressed = Value.Get<bool>();
+
+	if(!Combat) return;
+
+	if(bIsPressed)
+	{
+		Combat->FireButtonPressed(true);
+	}
+	else
+	{
+		Combat->FireButtonPressed(false);
+	}
+}
+
 void ABlasterCharacter::CalculateAO_Pitch()
 {
 	AO_Pitch = GetBaseAimRotation().Pitch;
@@ -346,22 +469,6 @@ void ABlasterCharacter::SimProxiesTurn()
 	TurningInPlace = ETurningInPlace::ETIP_NotTurning;
 }
 
-void ABlasterCharacter::FireButtonPressedAndReleased(const FInputActionValue& Value)
-{
-	bool bIsPressed = Value.Get<bool>();
-
-	if(!Combat) return;
-
-	if(bIsPressed)
-	{
-		Combat->FireButtonPressed(true);
-	}
-	else
-	{
-		Combat->FireButtonPressed(false);
-	}
-}
-
 void ABlasterCharacter::TurnInPlace(float DeltaTime)
 {
 	if(AO_Yaw > 90.0f)
@@ -393,11 +500,6 @@ void ABlasterCharacter::ServerEquipButtonPressed_Implementation()
 	}
 }
 
-void ABlasterCharacter::MulticastHit_Implementation()
-{
-	PlayHitReactMontage();
-}
-
 void ABlasterCharacter::HideCameraIfCharacterClose()
 {
 	if(!IsLocallyControlled()) return;
@@ -425,6 +527,59 @@ float ABlasterCharacter::CalculateSpeed()
 	FVector Velocity = GetVelocity();
 	Velocity.Z = 0;
 	return Velocity.Size();
+}
+
+void ABlasterCharacter::ReceiveDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser)
+{
+	Health = FMath::Clamp(Health - Damage, 0.0f, MaxHealth);
+
+	UpdateHUDHealth();
+	PlayHitReactMontage();
+
+	if(Health <= 0.0f)
+	{
+		ABlasterGameMode* BlasterGameMode = GetWorld()->GetAuthGameMode<ABlasterGameMode>();
+		if(BlasterGameMode)
+		{
+			BlasterPlayerController = BlasterPlayerController == nullptr ? Cast<ABlasterPlayerController>(GetController()) : BlasterPlayerController;
+			ABlasterPlayerController* AttackerController = Cast<ABlasterPlayerController>(InstigatedBy);
+			BlasterGameMode->PlayerEliminated(this, BlasterPlayerController, AttackerController);
+		}
+
+	}
+}
+
+void ABlasterCharacter::UpdateHUDHealth()
+{
+	BlasterPlayerController = BlasterPlayerController == nullptr ? Cast<ABlasterPlayerController>(GetController()) : BlasterPlayerController;
+	if(BlasterPlayerController)
+	{
+		BlasterPlayerController->SetHUDHealth(Health, MaxHealth);
+	}
+}
+
+void ABlasterCharacter::OnRep_Health()
+{
+	PlayHitReactMontage();
+	UpdateHUDHealth();
+}
+
+void ABlasterCharacter::StartDissolve()
+{
+	DissolveTrack.BindDynamic(this, &ThisClass::UpdateDissolveMaterial);
+	if(DissolveCurve && DissolveTimeLine)
+	{
+		DissolveTimeLine->AddInterpFloat(DissolveCurve, DissolveTrack);
+		DissolveTimeLine->Play();
+	}
+}
+
+void ABlasterCharacter::UpdateDissolveMaterial(float DissolveValue)
+{
+	if(DynamicDissolveMaterialInstance)
+	{
+		DynamicDissolveMaterialInstance->SetScalarParameterValue(TEXT("Dissolve"), DissolveValue);
+	}
 }
 
 void ABlasterCharacter::SetOverlappingWeapon(AWeapon* Weapon)

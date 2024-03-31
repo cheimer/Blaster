@@ -23,6 +23,9 @@ protected:
 	virtual void OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 		UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
 
+	UPROPERTY(EditAnywhere)
+	float Damage = 10.0f;
+
 private:
 	UPROPERTY(EditAnywhere)
 	class UBoxComponent* CollisionBox;
@@ -33,7 +36,7 @@ private:
 	UPROPERTY(EditAnywhere)
 	class UParticleSystem* Tracer;
 
-	class UParticleSystemComponent* TracerComponent;
+	TObjectPtr<class UParticleSystemComponent> TracerComponent;
 
 	UPROPERTY(EditAnywhere)
 	UParticleSystem* ImpactParticles;

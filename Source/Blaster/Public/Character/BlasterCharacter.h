@@ -6,6 +6,7 @@
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
 #include "BlasterTypes/TurningInPlace.h"
+#include "Components/TimelineComponent.h"
 #include "Interfaces/InteractWithCrosshairsInterface.h"
 #include "BlasterCharacter.generated.h"
 
@@ -18,64 +19,78 @@ public:
 	ABlasterCharacter();
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	virtual void Destroyed() override;
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void PostInitializeComponents() override;
 
 	void PlayFireMontage(bool bAiming);
 	void PlayHitReactMontage();
-
-	UFUNCTION(NetMulticast, Unreliable)
-	void MulticastHit();
+	void PlayEliminatedMontage();
 
 	virtual void OnRep_ReplicatedMovement() override;
+
+	void Eliminated();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiEliminated();
 
 protected:
 	virtual void BeginPlay() override;
 
 	void MoveForwardRight(const FInputActionValue& Value);
 	void LookUpRight(const FInputActionValue& Value);
+	virtual void Jump() override;
+
 	void EquipButtonPressed(const FInputActionValue& Value);
 	void CrouchButtonPressed(const FInputActionValue& Value);
 	void AimButtonPressedAndReleased(const FInputActionValue& Value);
+	void FireButtonPressedAndReleased(const FInputActionValue& Value);
+
 	void CalculateAO_Pitch();
 	void AimOffSet(float DeltaTime);
 	void SimProxiesTurn();
-	virtual void Jump() override;
-	void FireButtonPressedAndReleased(const FInputActionValue& Value);
+
+	UFUNCTION()
+	void ReceiveDamage(AActor* DamagedActor, float Damage, const class UDamageType* DamageType, class AController* InstigatedBy, AActor* DamageCauser);
+	void UpdateHUDHealth();
+	// Poll for any relevant classes and initialize our HUD
+	void PollInit();
 
 	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
-	TObjectPtr<class UInputMappingContext> PlayerInputMapping;
+	class UInputMappingContext* PlayerInputMapping;
 	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
-	TObjectPtr<class UInputAction> MoveAction;
+	class UInputAction* MoveAction;
 	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
-	TObjectPtr<class UInputAction> LookAction;
+	UInputAction* LookAction;
 	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
-	TObjectPtr<class UInputAction> JumpAction;
+	UInputAction* JumpAction;
 	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
-	TObjectPtr<class UInputAction> EquipAction;
+	UInputAction* EquipAction;
 	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
-	TObjectPtr<class UInputAction> CrouchAction;
+	UInputAction* CrouchAction;
 	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
-	TObjectPtr<class UInputAction> AimAction;
+	UInputAction* AimAction;
 	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
-	TObjectPtr<class UInputAction> FireAction;
+	UInputAction* FireAction;
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
-	TObjectPtr<class USpringArmComponent> CameraBoom;
+	class USpringArmComponent* CameraBoom;
 
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
-	TObjectPtr<class UCameraComponent> FollowCamera;
+	class UCameraComponent* FollowCamera;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	class UWidgetComponent* OverheadWidget;
 
 	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<class UCombatComponent> Combat;
+	class UCombatComponent* Combat;
 
 	UPROPERTY(ReplicatedUsing = OnRep_OverlappingWeapon)
 	class AWeapon* OverlappingWeapon;
+
+	TObjectPtr<class ABlasterPlayerState> BlasterPlayerState;
 
 	UFUNCTION()
 	void OnRep_OverlappingWeapon(AWeapon* LastWeapon);
@@ -97,6 +112,9 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	class UAnimMontage* HitReactMontage;
 
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	class UAnimMontage* EliminatedMontage;
+
 	void HideCameraIfCharacterClose();
 
 	UPROPERTY(EditAnywhere)
@@ -110,6 +128,64 @@ private:
 	float TimeSinceLastMovementReplication;
 	float CalculateSpeed();
 
+	/*
+	 * Player Health
+	 */
+
+	UPROPERTY(EditAnywhere, Category = "Player Stats")
+	float MaxHealth = 100.0f;
+
+	UPROPERTY(ReplicatedUsing = OnRep_Health, VisibleAnywhere, Category = "Player Stats")
+	float Health = 100.0f;
+
+	UFUNCTION()
+	void OnRep_Health();
+
+	TObjectPtr<class ABlasterPlayerController> BlasterPlayerController;
+
+	bool bEliminated = false;
+
+	FTimerHandle EliminatedTimer;
+
+	UPROPERTY(EditDefaultsOnly)
+	float EliminatedDelay = 3.0f;
+
+	void EliminatedTimerFinished();
+
+	/*
+	 * Dissolve Effect
+	 */
+
+	UPROPERTY(VisibleAnywhere)
+	UTimelineComponent* DissolveTimeLine;
+
+	FOnTimelineFloat DissolveTrack;
+
+	void StartDissolve();
+	UFUNCTION()
+	void UpdateDissolveMaterial(float DissolveValue);
+
+	UPROPERTY(EditAnywhere)
+	UCurveFloat* DissolveCurve;
+
+	// Dynamic Instance that We Can Change at Runtime
+	UPROPERTY(VisibleAnywhere, Category = "Eliminated")
+	UMaterialInstanceDynamic* DynamicDissolveMaterialInstance;
+
+	// Material Instance Set on the Blueprint, used with the Dynamic Material Instance
+	UPROPERTY(EditAnywhere, Category = "Eliminated")
+	UMaterialInstance* DissolveMaterialInstance;
+
+	/*
+	 * Eli bot
+	 */
+
+	UPROPERTY(EditAnywhere)
+	UParticleSystem* EliBotEffect;
+
+	UPROPERTY(VisibleAnywhere)
+	UParticleSystemComponent* EliBotComponent;
+
 public:
 	void SetOverlappingWeapon(AWeapon* Weapon);
 	bool IsWeaponEquipped();
@@ -121,5 +197,8 @@ public:
 	FVector GetHitTarget() const;
 	UCameraComponent* GetFollowCamera() const {return FollowCamera;}
 	bool ShouldRotateRootBone() const {return bRotateRootBone;}
+	bool IsEliminated() const {return bEliminated;}
+	float GetHealth() const {return Health;}
+	float GetMaxHealth() const {return MaxHealth;}
 
 };
