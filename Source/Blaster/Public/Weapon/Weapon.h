@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "WeaponTypes.h"
 #include "GameFramework/Actor.h"
 #include "Weapon.generated.h"
 
@@ -30,6 +31,8 @@ public:
 	void ShowPickupWidget(bool bShowWidget);
 	virtual void Fire(const FVector& HitTarget);
 	void Dropped();
+	void SetHUDAmmo();
+	void AddAmmo(int32 AmmoToAdd);
 
 	/**
 	 * Textures for crosshairs
@@ -70,10 +73,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	bool bAutomatic = true;
 
+	UPROPERTY(EditAnywhere)
+	class USoundCue* EquipSound;
+
 protected:
 	virtual void BeginPlay() override;
-
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual void OnRep_Owner() override;
 
 	UFUNCTION()
 	virtual void OnSphereOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
@@ -96,6 +102,9 @@ private:
 	UPROPERTY(EditAnywhere, Category = "WeaponProperties")
 	class UAnimationAsset* FireAnimation;
 
+	TObjectPtr<class ABlasterCharacter> BlasterOwnerCharacter;
+	TObjectPtr<class ABlasterPlayerController> BlasterOwnerController;
+
 	UPROPERTY(ReplicatedUsing = OnRep_WeaponState, VisibleAnywhere, Category = "Weapon Properties")
 	EWeaponState WeaponState;
 
@@ -105,11 +114,29 @@ private:
 	UPROPERTY(EditAnywhere)
 	TSubclassOf<class ACasing> CasingClass;
 
+	UPROPERTY(EditAnywhere, ReplicatedUsing = OnRep_Ammo)
+	int32 Ammo = 30;
+
+	UFUNCTION()
+	void OnRep_Ammo();
+
+	void SpendRound();
+
+	UPROPERTY(EditAnywhere)
+	int32 MagCapacity = 30;
+
+	UPROPERTY(EditAnywhere)
+	EWeaponType WeaponType;
+
 public:
 	void SetWeaponState(EWeaponState State);
 	USphereComponent* GetAreaSphere() const {return AreaSphere;}
 	USkeletalMeshComponent* GetWeaponMesh() const {return WeaponMesh;}
 	float GetZoomedFOV() const {return ZoomedFOV;};
 	float GetZoomInterpSpeed() const {return ZoomInterpSpeed;}
+	bool IsEmpty();
+	EWeaponType GetWeaponType() const {return WeaponType;}
+	int32 GetAmmo() const {return Ammo;}
+	int32 GetMagCapacity() const {return MagCapacity;}
 
 };

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
+#include "BlasterTypes/CombatState.h"
 #include "BlasterTypes/TurningInPlace.h"
 #include "Components/TimelineComponent.h"
 #include "Interfaces/InteractWithCrosshairsInterface.h"
@@ -17,14 +18,16 @@ class BLASTER_API ABlasterCharacter : public ACharacter, public IInteractWithCro
 
 public:
 	ABlasterCharacter();
-	virtual void Tick(float DeltaTime) override;
+	virtual void PossessedBy(AController* NewController) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	virtual void Tick(float DeltaTime) override;
 	virtual void Destroyed() override;
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void PostInitializeComponents() override;
 
 	void PlayFireMontage(bool bAiming);
+	void PlayReloadMontage();
 	void PlayHitReactMontage();
 	void PlayEliminatedMontage();
 
@@ -35,6 +38,9 @@ public:
 	UFUNCTION(NetMulticast, Reliable)
 	void MultiEliminated();
 
+	UPROPERTY(Replicated)
+	bool bDisableGameplay = false;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -44,6 +50,7 @@ protected:
 
 	void EquipButtonPressed(const FInputActionValue& Value);
 	void CrouchButtonPressed(const FInputActionValue& Value);
+	void ReloadButtonPressed(const FInputActionValue& Value);
 	void AimButtonPressedAndReleased(const FInputActionValue& Value);
 	void FireButtonPressedAndReleased(const FInputActionValue& Value);
 
@@ -56,6 +63,7 @@ protected:
 	void UpdateHUDHealth();
 	// Poll for any relevant classes and initialize our HUD
 	void PollInit();
+	void RotateInPlace(float DeltaTime);
 
 	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
 	class UInputMappingContext* PlayerInputMapping;
@@ -73,6 +81,8 @@ protected:
 	UInputAction* AimAction;
 	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
 	UInputAction* FireAction;
+	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
+	UInputAction* ReloadAction;
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
@@ -84,7 +94,7 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	class UWidgetComponent* OverheadWidget;
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	class UCombatComponent* Combat;
 
 	UPROPERTY(ReplicatedUsing = OnRep_OverlappingWeapon)
@@ -108,10 +118,10 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	class UAnimMontage* FireWeaponMontage;
-
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	class UAnimMontage* ReloadMontage;
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	class UAnimMontage* HitReactMontage;
-
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	class UAnimMontage* EliminatedMontage;
 
@@ -200,5 +210,8 @@ public:
 	bool IsEliminated() const {return bEliminated;}
 	float GetHealth() const {return Health;}
 	float GetMaxHealth() const {return MaxHealth;}
+	ECombatState GetCombatState() const;
+	UCombatComponent* GetCombat() const {return Combat;}
+	bool GetDisableGameplay() const {return bDisableGameplay;}
 
 };

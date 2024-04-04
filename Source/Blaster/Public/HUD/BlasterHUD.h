@@ -22,7 +22,7 @@ public:
 };
 
 /**
- * 
+ *
  */
 UCLASS()
 class BLASTER_API ABlasterHUD : public AHUD
@@ -34,13 +34,16 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Player States")
 	TSubclassOf<class UUserWidget> CharacterOverlayClass;
+	TObjectPtr<class UCharacterOverlayWidget> CharacterOverlay;
+	void AddCharacterOverlay();
 
-	class UCharacterOverlayWidget* CharacterOverlay;
+	UPROPERTY(EditAnywhere, Category = "Announcement")
+	TSubclassOf<class UUserWidget> AnnouncementClass;
+	TObjectPtr<class UAnnouncement> Announcement;
+	void AddAnnouncement();
 
 protected:
 	virtual void BeginPlay() override;
-
-	void AddCharacterOverlay();
 
 private:
 	FHUDPackage HUDPackage;

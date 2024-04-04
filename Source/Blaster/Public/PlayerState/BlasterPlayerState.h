@@ -28,6 +28,6 @@ private:
 	TObjectPtr<class ABlasterPlayerController> Controller;
 
 	UPROPERTY(ReplicatedUsing = OnRep_Defeats)
-	int32 Defeats = 0;
+	int32 Defeats;
 
 };

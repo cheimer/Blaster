@@ -69,6 +69,7 @@ void ABlasterCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 
 	DOREPLIFETIME_CONDITION(ABlasterCharacter, OverlappingWeapon, COND_OwnerOnly);
 	DOREPLIFETIME(ABlasterCharacter, Health);
+	DOREPLIFETIME(ABlasterCharacter, bDisableGameplay);
 }
 
 void ABlasterCharacter::PostInitializeComponents()
@@ -87,13 +88,17 @@ void ABlasterCharacter::BeginPlay()
 
 	check(PlayerInputMapping);
 
-	if(const APlayerController* PlayerController = Cast<APlayerController>(GetController()))
+	if(!HasAuthority())
 	{
-		if(UEnhancedInputLocalPlayerSubsystem* Subsystem =
-			ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+		if(const APlayerController* PlayerController = Cast<APlayerController>(GetController()))
 		{
-			Subsystem->AddMappingContext(PlayerInputMapping, 0);
+			if(UEnhancedInputLocalPlayerSubsystem* Subsystem =
+				ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+			{
+				Subsystem->AddMappingContext(PlayerInputMapping, 0);
+			}
 		}
+
 	}
 
 	UpdateHUDHealth();
@@ -105,10 +110,38 @@ void ABlasterCharacter::BeginPlay()
 	
 }
 
+void ABlasterCharacter::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+
+	// Server Enhanced Input Too early in BeginPlay
+	if(const APlayerController* PlayerController = Cast<APlayerController>(GetController()))
+	{
+		if(UEnhancedInputLocalPlayerSubsystem* Subsystem =
+			ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+		{
+			Subsystem->AddMappingContext(PlayerInputMapping, 0);
+		}
+	}
+}
+
 void ABlasterCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	RotateInPlace(DeltaTime);
+	HideCameraIfCharacterClose();
+	PollInit();
+}
+
+void ABlasterCharacter::RotateInPlace(float DeltaTime)
+{
+	if(bDisableGameplay)
+	{
+		bUseControllerRotationYaw = false;
+		TurningInPlace = ETurningInPlace::ETIP_NotTurning;
+		return;
+	}
 	if(GetLocalRole() > ROLE_SimulatedProxy && IsLocallyControlled())
 	{
 		AimOffSet(DeltaTime);
@@ -122,8 +155,6 @@ void ABlasterCharacter::Tick(float DeltaTime)
 		}
 		CalculateAO_Pitch();
 	}
-	HideCameraIfCharacterClose();
-	PollInit();
 }
 
 void ABlasterCharacter::PollInit()
@@ -173,6 +204,10 @@ void ABlasterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 		{
 			EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Triggered, this, &ThisClass::FireButtonPressedAndReleased);
 		}
+		if(ReloadAction)
+		{
+			EnhancedInputComponent->BindAction(ReloadAction, ETriggerEvent::Triggered, this, &ThisClass::ReloadButtonPressed);
+		}
 	}
 }
 
@@ -183,6 +218,13 @@ void ABlasterCharacter::Destroyed()
 	if(EliBotComponent)
 	{
 		EliBotComponent->DestroyComponent();
+	}
+
+	ABlasterGameMode* BlasterGameMode = Cast<ABlasterGameMode>(UGameplayStatics::GetGameMode(this));
+	bool bMatchNotInProgress = BlasterGameMode && BlasterGameMode->GetMatchState() != MatchState::InProgress;
+	if(Combat && Combat->EquippedWeapon && bMatchNotInProgress)
+	{
+		Combat->EquippedWeapon->Destroy();
 	}
 }
 
@@ -199,6 +241,11 @@ void ABlasterCharacter::Eliminated()
 
 void ABlasterCharacter::MultiEliminated_Implementation()
 {
+	if(BlasterPlayerController)
+	{
+		BlasterPlayerController->SetHUDWeaponAmmo(0);
+	}
+
 	bEliminated = true;
 	PlayEliminatedMontage();
 
@@ -216,6 +263,12 @@ void ABlasterCharacter::MultiEliminated_Implementation()
 	// Disable Character Movement
 	GetCharacterMovement()->DisableMovement();
 	GetCharacterMovement()->StopMovementImmediately();
+	bDisableGameplay = true;
+	if(Combat)
+	{
+		Combat->FireButtonPressed(false);
+	}
+
 	if(BlasterPlayerController)
 	{
 		BlasterPlayerController->DisableInput(BlasterPlayerController);
@@ -258,6 +311,27 @@ void ABlasterCharacter::PlayFireMontage(bool bAiming)
 
 }
 
+void ABlasterCharacter::PlayReloadMontage()
+{
+	if(!Combat || !Combat->EquippedWeapon) return;
+
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if(AnimInstance && ReloadMontage)
+	{
+		AnimInstance->Montage_Play(ReloadMontage);
+		FName SectionName;
+
+		switch(Combat->EquippedWeapon->GetWeaponType())
+		{
+		case EWeaponType::EWT_AssaultRifle:
+			SectionName = FName("Rifle");
+			break;
+		}
+		AnimInstance->Montage_JumpToSection(SectionName);
+	}
+
+}
+
 void ABlasterCharacter::PlayHitReactMontage()
 {
 	if(!Combat || !Combat->EquippedWeapon) return;
@@ -292,6 +366,7 @@ void ABlasterCharacter::OnRep_ReplicatedMovement()
 
 void ABlasterCharacter::MoveForwardRight(const FInputActionValue& Value)
 {
+	if(bDisableGameplay) return;
 	if(!GetController()) return;
 
 	const FVector2D MoveValue = Value.Get<FVector2D>();
@@ -319,6 +394,7 @@ void ABlasterCharacter::LookUpRight(const FInputActionValue& Value)
 
 void ABlasterCharacter::Jump()
 {
+	if(bDisableGameplay) return;
 	if(bIsCrouched)
 	{
 		UnCrouch();
@@ -331,6 +407,7 @@ void ABlasterCharacter::Jump()
 
 void ABlasterCharacter::EquipButtonPressed(const FInputActionValue& Value)
 {
+	if(bDisableGameplay) return;
 	if(Combat)
 	{
 		if(HasAuthority())
@@ -346,6 +423,7 @@ void ABlasterCharacter::EquipButtonPressed(const FInputActionValue& Value)
 
 void ABlasterCharacter::CrouchButtonPressed(const FInputActionValue& Value)
 {
+	if(bDisableGameplay) return;
 	if(bIsCrouched)
 	{
 		UnCrouch();
@@ -356,8 +434,18 @@ void ABlasterCharacter::CrouchButtonPressed(const FInputActionValue& Value)
 	}
 }
 
+void ABlasterCharacter::ReloadButtonPressed(const FInputActionValue& Value)
+{
+	if(bDisableGameplay) return;
+	if(Combat)
+	{
+		Combat->Reload();
+	}
+}
+
 void ABlasterCharacter::AimButtonPressedAndReleased(const FInputActionValue& Value)
 {
+	if(bDisableGameplay) return;
 	const bool bIsPressed = Value.Get<bool>();
 
 	if(!Combat) return;
@@ -374,6 +462,7 @@ void ABlasterCharacter::AimButtonPressedAndReleased(const FInputActionValue& Val
 
 void ABlasterCharacter::FireButtonPressedAndReleased(const FInputActionValue& Value)
 {
+	if(bDisableGameplay) return;
 	bool bIsPressed = Value.Get<bool>();
 
 	if(!Combat) return;
@@ -634,4 +723,11 @@ FVector ABlasterCharacter::GetHitTarget() const
 	if(!Combat) return FVector();
 
 	return Combat->HitTarget;
+}
+
+ECombatState ABlasterCharacter::GetCombatState() const
+{
+	if(!Combat) return ECombatState::ECS_MAX;
+
+	return Combat->CombatState;
 }
