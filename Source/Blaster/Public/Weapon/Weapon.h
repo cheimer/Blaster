@@ -76,6 +76,12 @@ public:
 	UPROPERTY(EditAnywhere)
 	class USoundCue* EquipSound;
 
+	/*
+	 * CustomDepth
+	 */
+
+	void EnableCustomDepth(bool bEnable);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
@@ -135,6 +141,7 @@ public:
 	float GetZoomedFOV() const {return ZoomedFOV;};
 	float GetZoomInterpSpeed() const {return ZoomInterpSpeed;}
 	bool IsEmpty();
+	bool IsFull();
 	EWeaponType GetWeaponType() const {return WeaponType;}
 	int32 GetAmmo() const {return Ammo;}
 	int32 GetMagCapacity() const {return MagCapacity;}

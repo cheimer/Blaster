@@ -285,6 +285,14 @@ void ABlasterCharacter::MultiEliminated_Implementation()
 		FVector EliBotSpawnPoint(GetActorLocation().X, GetActorLocation().Y, GetActorLocation().Z + 200.0f);
 		EliBotComponent = UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), EliBotEffect, EliBotSpawnPoint, GetActorRotation());
 	}
+
+	bool bHidSniperScope = IsLocallyControlled() && Combat && Combat->bAiming && Combat->EquippedWeapon &&
+		Combat->EquippedWeapon->GetWeaponType() == EWeaponType::EWT_SniperRifle;
+	if(bHidSniperScope)
+	{
+
+		ShowSniperScopeWidget(false);
+	}
 }
 
 void ABlasterCharacter::EliminatedTimerFinished()
@@ -328,16 +336,22 @@ void ABlasterCharacter::PlayReloadMontage()
 			SectionName = FName("Rifle");
 			break;
 		case EWeaponType::EWT_RocketLauncher:
-			SectionName = FName("Rifle");
+			SectionName = FName("Rocket");
 			break;
 		case EWeaponType::EWT_Pistol:
-			SectionName = FName("Rifle");
+			SectionName = FName("Pistol");
 			break;
 		case EWeaponType::EWT_SubmachineGun:
-			SectionName = FName("Rifle");
+			SectionName = FName("Pistol");
 			break;
 		case EWeaponType::EWT_Shotgun:
-			SectionName = FName("Rifle");
+			SectionName = FName("Shotgun");
+			break;
+		case EWeaponType::EWT_SniperRifle:
+			SectionName = FName("SniperRifle");
+			break;
+		case EWeaponType::EWT_GrenadeLauncher:
+			SectionName = FName("GrenadeLauncher");
 			break;
 		}
 		AnimInstance->Montage_JumpToSection(SectionName);

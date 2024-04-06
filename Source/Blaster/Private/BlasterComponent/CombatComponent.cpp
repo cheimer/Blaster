@@ -157,24 +157,32 @@ void UCombatComponent::InterpFOV(float DeltaTime)
 
 void UCombatComponent::SetAiming(bool bAimingParam)
 {
+	if(!Character || !EquippedWeapon) return;
 	bAiming = bAimingParam;
 
-	if(Character && !Character->HasAuthority())
+	if(!Character->HasAuthority())
 	{
 		ServerSetAiming(bAimingParam);
 	}
-	if(Character)
+	Character->GetCharacterMovement()->MaxWalkSpeed = bAimingParam ? AimWalkSpeed : BaseWalkSpeed;
+
+	if(Character->IsLocallyControlled() && EquippedWeapon->GetWeaponType() == EWeaponType::EWT_SniperRifle)
 	{
-		Character->GetCharacterMovement()->MaxWalkSpeed = bAimingParam ? AimWalkSpeed : BaseWalkSpeed;
+		Character->ShowSniperScopeWidget(bAiming);
 	}
+
 }
 
 void UCombatComponent::ServerSetAiming_Implementation(bool bAimingParam)
 {
+	if(!EquippedWeapon) return;
 	bAiming = bAimingParam;
-	if(Character)
+
+	Character->GetCharacterMovement()->MaxWalkSpeed = bAimingParam ? AimWalkSpeed : BaseWalkSpeed;
+
+	if(Character->IsLocallyControlled() && EquippedWeapon->GetWeaponType() == EWeaponType::EWT_SniperRifle)
 	{
-		Character->GetCharacterMovement()->MaxWalkSpeed = bAimingParam ? AimWalkSpeed : BaseWalkSpeed;
+		Character->ShowSniperScopeWidget(bAiming);
 	}
 }
 
@@ -310,7 +318,7 @@ void UCombatComponent::FinishReloading()
 
 void UCombatComponent::UpdateAmmoValues()
 {
-	if(!EquippedWeapon) return;
+	if(!Character || !EquippedWeapon) return;
 
 	int32 ReloadAmount = AmountToReload();
 	if(CarriedAmmoMap.Contains(EquippedWeapon->GetWeaponType()))
@@ -326,6 +334,47 @@ void UCombatComponent::UpdateAmmoValues()
 	}
 
 	EquippedWeapon->AddAmmo(-ReloadAmount);
+}
+
+void UCombatComponent::ShotgunShellReload()
+{
+	if(Character && Character->HasAuthority())
+	{
+		UpdateShotgunAmmoValues();
+	}
+}
+
+void UCombatComponent::UpdateShotgunAmmoValues()
+{
+	if(!Character || !EquippedWeapon) return;
+
+	if(CarriedAmmoMap.Contains(EquippedWeapon->GetWeaponType()))
+	{
+		CarriedAmmoMap[EquippedWeapon->GetWeaponType()] -= 1;
+		CarriedAmmo = CarriedAmmoMap[EquippedWeapon->GetWeaponType()];
+	}
+
+	Controller = Controller == nullptr ? Cast<ABlasterPlayerController>(Character->GetController()) : Controller;
+	if(Controller)
+	{
+		Controller->SetHUDCarriedAmmo(CarriedAmmo);
+	}
+
+	EquippedWeapon->AddAmmo(-1);
+	bCanFire = true;
+	if(EquippedWeapon->IsFull() || CarriedAmmo == 0)
+	{
+		JumpToShotgunEnd();
+	}
+}
+
+void UCombatComponent::JumpToShotgunEnd()
+{
+	UAnimInstance* AnimInstance = Character->GetMesh()->GetAnimInstance();
+	if(AnimInstance && Character->GetReloadMontage())
+	{
+		AnimInstance->Montage_JumpToSection(FName("ShotgunEnd"));
+	}
 }
 
 void UCombatComponent::FireButtonPressed(bool bPressed)
@@ -383,6 +432,13 @@ void UCombatComponent::ServerFire_Implementation(const FVector_NetQuantize& Trac
 void UCombatComponent::MulticastFire_Implementation(const FVector_NetQuantize& TraceHitTarget)
 {
 	if(!EquippedWeapon) return;
+	if(Character && CombatState == ECombatState::ECS_Reloading && EquippedWeapon->GetWeaponType() == EWeaponType::EWT_Shotgun)
+	{
+		Character->PlayFireMontage(bAiming);
+		EquippedWeapon->Fire(TraceHitTarget);
+		CombatState = ECombatState::ECS_Unoccupied;
+		return;
+	}
 
 	if(Character && CombatState == ECombatState::ECS_Unoccupied)
 	{
@@ -394,6 +450,8 @@ void UCombatComponent::MulticastFire_Implementation(const FVector_NetQuantize& T
 bool UCombatComponent::CanFire()
 {
 	if(!EquippedWeapon) return false;
+	if(!EquippedWeapon->IsEmpty() && bCanFire && CombatState == ECombatState::ECS_Reloading &&
+		EquippedWeapon->GetWeaponType() ==EWeaponType::EWT_Shotgun) return true;
 	return !EquippedWeapon->IsEmpty() && bCanFire && CombatState == ECombatState::ECS_Unoccupied;
 
 }
@@ -405,6 +463,8 @@ void UCombatComponent::InitializeCarriedAmmo()
 	CarriedAmmoMap.Emplace(EWeaponType::EWT_Pistol, StartingPistolAmmo);
 	CarriedAmmoMap.Emplace(EWeaponType::EWT_SubmachineGun, StartingSMGAmmo);
 	CarriedAmmoMap.Emplace(EWeaponType::EWT_Shotgun, StartingShotgunAmmo);
+	CarriedAmmoMap.Emplace(EWeaponType::EWT_SniperRifle, StartingSniperAmmo);
+	CarriedAmmoMap.Emplace(EWeaponType::EWT_GrenadeLauncher, StartingGrenadeLauncherAmmo);
 }
 
 void UCombatComponent::OnRep_CarriedAmmo()
@@ -413,6 +473,12 @@ void UCombatComponent::OnRep_CarriedAmmo()
 	if(Controller)
 	{
 		Controller->SetHUDCarriedAmmo(CarriedAmmo);
+	}
+	bool bJumpToShotgunEnd = CombatState == ECombatState::ECS_Reloading && EquippedWeapon &&
+		EquippedWeapon->GetWeaponType() == EWeaponType::EWT_Shotgun && CarriedAmmo == 0;
+	if(bJumpToShotgunEnd)
+	{
+		JumpToShotgunEnd();
 	}
 
 }
