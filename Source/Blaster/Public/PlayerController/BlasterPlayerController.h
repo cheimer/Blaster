@@ -25,6 +25,7 @@ public:
 	void SetHUDCarriedAmmo(int32 Ammo);
 	void SetHUDMatchCountDown(float CountDownTime);
 	void SetHUDAnnouncementCountDown(float CountDownTime);
+	void SetHUDGrenades(int32 Grenades);
 
 	virtual float GetServerTime();
 	virtual void ReceivedPlayer() override;
@@ -88,5 +89,6 @@ private:
 	float HUDMaxHealth;
 	float HUDScore;
 	int32 HUDDefeats;
+	int32 HUDGrenades;
 
 };

@@ -13,6 +13,7 @@
 #include "Net/UnrealNetwork.h"
 #include "PlayerController/BlasterPlayerController.h"
 #include "Sound/SoundCue.h"
+#include "Weapon/Projectile.h"
 #include "Weapon/Weapon.h"
 
 UCombatComponent::UCombatComponent()
@@ -31,6 +32,7 @@ void UCombatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(UCombatComponent, bAiming);
 	DOREPLIFETIME_CONDITION(UCombatComponent, CarriedAmmo, COND_OwnerOnly);
 	DOREPLIFETIME(UCombatComponent, CombatState);
+	DOREPLIFETIME(UCombatComponent, Grenades);
 }
 
 void UCombatComponent::BeginPlay()
@@ -189,41 +191,21 @@ void UCombatComponent::ServerSetAiming_Implementation(bool bAimingParam)
 void UCombatComponent::EquipWeapon(AWeapon* EquipWeaponParam)
 {
 	if(!Character || !EquipWeaponParam) return;
-	if(EquippedWeapon)
-	{
-		EquippedWeapon->Dropped();
-	}
+	if(CombatState != ECombatState::ECS_Unoccupied) return;
 
+	DropEquippedWeapon();
 	EquippedWeapon = EquipWeaponParam;
 	EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
-	const USkeletalMeshSocket* HandSocket =  Character->GetMesh()->GetSocketByName(FName("RightHandSocket"));
-	if(HandSocket)
-	{
-		HandSocket->AttachActor(EquippedWeapon, Character->GetMesh());
-	}
+
+	AttachActorToRightHand(EquippedWeapon);
 	EquippedWeapon->SetOwner(Character);
 	EquippedWeapon->SetHUDAmmo();
 
-	if(CarriedAmmoMap.Contains(EquippedWeapon->GetWeaponType()))
-	{
-		CarriedAmmo = CarriedAmmoMap[EquippedWeapon->GetWeaponType()];
-	}
+	UpdateCarriedAmmo();
 
-	Controller = Controller == nullptr ? Cast<ABlasterPlayerController>(Character->GetController()) : Controller;
-	if(Controller)
-	{
-		Controller->SetHUDCarriedAmmo(CarriedAmmo);
-	}
+	PlayEquipWeaponSound();
 
-	if(EquippedWeapon->EquipSound)
-	{
-		UGameplayStatics::PlaySoundAtLocation(this, EquippedWeapon->EquipSound, Character->GetActorLocation());
-	}
-
-	if(EquippedWeapon->IsEmpty())
-	{
-		Reload();
-	}
+	ReloadEmptyWeapon();
 
 	Character->GetCharacterMovement()->bOrientRotationToMovement = false;
 	Character->bUseControllerRotationYaw = true;
@@ -234,24 +216,83 @@ void UCombatComponent::OnRep_EquippedWeapon()
 	if(EquippedWeapon && Character)
 	{
 		EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
-		const USkeletalMeshSocket* HandSocket =  Character->GetMesh()->GetSocketByName(FName("RightHandSocket"));
-		if(HandSocket)
-		{
-			HandSocket->AttachActor(EquippedWeapon, Character->GetMesh());
-		}
+		AttachActorToRightHand(EquippedWeapon);
+
 		Character->GetCharacterMovement()->bOrientRotationToMovement = false;
 		Character->bUseControllerRotationYaw = true;
+		PlayEquipWeaponSound();
 	}
-	if(EquippedWeapon->EquipSound)
+}
+
+void UCombatComponent::DropEquippedWeapon()
+{
+	if(EquippedWeapon)
+	{
+		EquippedWeapon->Dropped();
+	}
+}
+
+void UCombatComponent::AttachActorToRightHand(AActor* ActorToAttach)
+{
+	if(!Character || !Character->GetMesh() || !ActorToAttach) return;
+	const USkeletalMeshSocket* HandSocket =  Character->GetMesh()->GetSocketByName(FName("RightHandSocket"));
+	if(HandSocket)
+	{
+		HandSocket->AttachActor(ActorToAttach, Character->GetMesh());
+	}
+}
+
+void UCombatComponent::AttachActorToLeftHand(AActor* ActorToAttach)
+{
+	if(!Character || !Character->GetMesh() || !ActorToAttach) return;
+	if(!EquippedWeapon) return;
+	bool bUsePistolSocket =
+		EquippedWeapon->GetWeaponType() == EWeaponType::EWT_Pistol ||
+		EquippedWeapon->GetWeaponType() == EWeaponType::EWT_SubmachineGun;
+
+	FName SocketName = bUsePistolSocket ? FName("PistolSocket") : FName("LeftHandSocket");
+
+	const USkeletalMeshSocket* HandSocket =  Character->GetMesh()->GetSocketByName(SocketName);
+	if(HandSocket)
+	{
+		HandSocket->AttachActor(ActorToAttach, Character->GetMesh());
+	}
+}
+
+void UCombatComponent::UpdateCarriedAmmo()
+{
+	if(!EquippedWeapon) return;
+	if(CarriedAmmoMap.Contains(EquippedWeapon->GetWeaponType()))
+	{
+		CarriedAmmo = CarriedAmmoMap[EquippedWeapon->GetWeaponType()];
+	}
+
+	Controller = Controller == nullptr ? Cast<ABlasterPlayerController>(Character->GetController()) : Controller;
+	if(Controller)
+	{
+		Controller->SetHUDCarriedAmmo(CarriedAmmo);
+	}
+}
+void UCombatComponent::PlayEquipWeaponSound()
+{
+	if(Character && EquippedWeapon && EquippedWeapon->EquipSound)
 	{
 		UGameplayStatics::PlaySoundAtLocation(this, EquippedWeapon->EquipSound, Character->GetActorLocation());
+	}
+}
+
+void UCombatComponent::ReloadEmptyWeapon()
+{
+	if(EquippedWeapon && EquippedWeapon->IsEmpty())
+	{
+		Reload();
 	}
 }
 
 void UCombatComponent::Reload()
 {
 	if(!Character) return;
-	if(CarriedAmmo > 0 && CombatState != ECombatState::ECS_Reloading)
+	if(CarriedAmmo > 0 && CombatState != ECombatState::ECS_Unoccupied && EquippedWeapon && !EquippedWeapon->IsFull())
 	{
 		ServerReload();
 	}
@@ -276,6 +317,13 @@ void UCombatComponent::OnRep_CombatState()
 			Fire();
 		}
 		break;
+	case ECombatState::ECS_ThrowingGrenade:
+		if(Character && !Character->IsLocallyControlled())
+		{
+			Character->PlayThrowGrenadeMontage();
+			AttachActorToLeftHand(EquippedWeapon);
+			ShowAttachedGrenade(true);
+		}
 	}
 }
 
@@ -418,10 +466,7 @@ void UCombatComponent::FireTimerFinished()
 	{
 		Fire();
 	}
-	if(EquippedWeapon->IsEmpty())
-	{
-		Reload();
-	}
+	ReloadEmptyWeapon();
 }
 
 void UCombatComponent::ServerFire_Implementation(const FVector_NetQuantize& TraceHitTarget)
@@ -481,6 +526,97 @@ void UCombatComponent::OnRep_CarriedAmmo()
 		JumpToShotgunEnd();
 	}
 
+}
+
+void UCombatComponent::ThrowGrenade()
+{
+	if(Grenades <= 0 || !EquippedWeapon) return;
+	if(CombatState != ECombatState::ECS_Unoccupied && !EquippedWeapon) return;
+	CombatState = ECombatState::ECS_ThrowingGrenade;
+
+	if(Character)
+	{
+		Character->PlayThrowGrenadeMontage();
+		AttachActorToLeftHand(EquippedWeapon);
+		ShowAttachedGrenade(true);
+	}
+	if(Character && !Character->HasAuthority())
+	{
+		ServerThrowGrenade();
+	}
+	if(Character && Character->HasAuthority())
+	{
+		Grenades = FMath::Clamp(Grenades - 1, 0, MaxGrenades);
+		UpdateHUDGranades();
+	}
+}
+
+void UCombatComponent::ServerThrowGrenade_Implementation()
+{
+	if(Grenades <= 0 || !EquippedWeapon) return;
+	CombatState = ECombatState::ECS_ThrowingGrenade;
+	if(Character)
+	{
+		Character->PlayThrowGrenadeMontage();
+		AttachActorToLeftHand(EquippedWeapon);
+		ShowAttachedGrenade(true);
+	}
+	Grenades = FMath::Clamp(Grenades - 1, 0, MaxGrenades);
+	UpdateHUDGranades();
+}
+
+void UCombatComponent::ThrowGrenadeFinished()
+{
+	CombatState = ECombatState::ECS_Unoccupied;
+		AttachActorToRightHand(EquippedWeapon);
+}
+
+void UCombatComponent::OnRep_Grenades()
+{
+	UpdateHUDGranades();
+}
+
+void UCombatComponent::LaunchGrenade()
+{
+	ShowAttachedGrenade(false);
+
+	if(Character && Character->IsLocallyControlled())
+	{
+		ServerLaunchGrenade(HitTarget);
+	}
+}
+
+void UCombatComponent::ServerLaunchGrenade_Implementation(const FVector_NetQuantize& Target)
+{
+	if(Character && Character->GetAttachedGrenade() && GrenadeClass)
+	{
+		const FVector StartingLocation = Character->GetAttachedGrenade()->GetComponentLocation();
+		FVector ToTarget = Target - StartingLocation;
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.Owner = Character;
+		SpawnParams.Instigator = Character;
+		if(GetWorld())
+		{
+			GetWorld()->SpawnActor<AProjectile>(GrenadeClass, StartingLocation, ToTarget.Rotation(), SpawnParams);
+		}
+	}
+}
+
+void UCombatComponent::UpdateHUDGranades()
+{
+	Controller = Controller == nullptr ? Cast<ABlasterPlayerController>(Character->GetController()) : Controller;
+	if(Controller)
+	{
+		Controller->SetHUDGrenades(Grenades);
+	}
+}
+
+void UCombatComponent::ShowAttachedGrenade(bool bShowGrenade)
+{
+	if(Character && Character->GetAttachedGrenade())
+	{
+		Character->GetAttachedGrenade()->SetVisibility(bShowGrenade);
+	}
 }
 
 void UCombatComponent::TraceUnderCrosshairs(FHitResult& TraceHitResult)

@@ -61,6 +61,10 @@ ABlasterCharacter::ABlasterCharacter()
 	GetMesh()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 
 	TurningInPlace = ETurningInPlace::ETIP_NotTurning;
+
+	AttachedGrenade = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("AttachedGrenade"));
+	AttachedGrenade->SetupAttachment(GetMesh(), FName("GrenadeSocket"));
+	AttachedGrenade->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
 void ABlasterCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -107,7 +111,11 @@ void ABlasterCharacter::BeginPlay()
 	{
 		OnTakeAnyDamage.AddDynamic(this, &ThisClass::ReceiveDamage);
 	}
-	
+
+	if(AttachedGrenade)
+	{
+		AttachedGrenade->SetVisibility(false);
+	}
 }
 
 void ABlasterCharacter::PossessedBy(AController* NewController)
@@ -207,6 +215,10 @@ void ABlasterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 		if(ReloadAction)
 		{
 			EnhancedInputComponent->BindAction(ReloadAction, ETriggerEvent::Triggered, this, &ThisClass::ReloadButtonPressed);
+		}
+		if(ThrowGrenadeAction)
+		{
+			EnhancedInputComponent->BindAction(ThrowGrenadeAction, ETriggerEvent::Triggered, this, &ThisClass::ThrowGrenadeButtonPressed);
 		}
 	}
 }
@@ -383,6 +395,16 @@ void ABlasterCharacter::PlayEliminatedMontage()
 
 }
 
+void ABlasterCharacter::PlayThrowGrenadeMontage()
+{
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if(AnimInstance && ThrowGrenadeMontage)
+	{
+		AnimInstance->Montage_Play(ThrowGrenadeMontage);
+	}
+
+}
+
 void ABlasterCharacter::OnRep_ReplicatedMovement()
 {
 	Super::OnRep_ReplicatedMovement();
@@ -501,6 +523,14 @@ void ABlasterCharacter::FireButtonPressedAndReleased(const FInputActionValue& Va
 	else
 	{
 		Combat->FireButtonPressed(false);
+	}
+}
+
+void ABlasterCharacter::ThrowGrenadeButtonPressed(const FInputActionValue& Value)
+{
+	if(Combat)
+	{
+		Combat->ThrowGrenade();
 	}
 }
 
@@ -647,6 +677,7 @@ float ABlasterCharacter::CalculateSpeed()
 
 void ABlasterCharacter::ReceiveDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser)
 {
+	if(bEliminated) return;
 	Health = FMath::Clamp(Health - Damage, 0.0f, MaxHealth);
 
 	UpdateHUDHealth();

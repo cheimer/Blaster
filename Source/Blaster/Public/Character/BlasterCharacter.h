@@ -30,6 +30,7 @@ public:
 	void PlayReloadMontage();
 	void PlayHitReactMontage();
 	void PlayEliminatedMontage();
+	void PlayThrowGrenadeMontage();
 
 	virtual void OnRep_ReplicatedMovement() override;
 
@@ -56,6 +57,7 @@ protected:
 	void ReloadButtonPressed(const FInputActionValue& Value);
 	void AimButtonPressedAndReleased(const FInputActionValue& Value);
 	void FireButtonPressedAndReleased(const FInputActionValue& Value);
+	void ThrowGrenadeButtonPressed(const FInputActionValue& Value);
 
 	void CalculateAO_Pitch();
 	void AimOffSet(float DeltaTime);
@@ -86,6 +88,8 @@ protected:
 	UInputAction* FireAction;
 	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
 	UInputAction* ReloadAction;
+	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
+	UInputAction* ThrowGrenadeAction;
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
@@ -127,6 +131,8 @@ private:
 	class UAnimMontage* HitReactMontage;
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	class UAnimMontage* EliminatedMontage;
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	class UAnimMontage* ThrowGrenadeMontage;
 
 	void HideCameraIfCharacterClose();
 
@@ -199,6 +205,13 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	UParticleSystemComponent* EliBotComponent;
 
+	/*
+	 * Grenade
+	 */
+
+	UPROPERTY(VisibleAnywhere)
+	UStaticMeshComponent* AttachedGrenade;
+
 public:
 	void SetOverlappingWeapon(AWeapon* Weapon);
 	bool IsWeaponEquipped();
@@ -216,6 +229,7 @@ public:
 	ECombatState GetCombatState() const;
 	UCombatComponent* GetCombat() const {return Combat;}
 	bool GetDisableGameplay() const {return bDisableGameplay;}
-	UAnimMontage* GetReloadMontage() {return ReloadMontage;}
+	UAnimMontage* GetReloadMontage() const {return ReloadMontage;}
+	UStaticMeshComponent* GetAttachedGrenade() const {return AttachedGrenade;}
 
 };
