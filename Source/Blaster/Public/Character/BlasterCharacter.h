@@ -46,6 +46,10 @@ public:
 	void ShowSniperScopeWidget(bool bShowScope);
 
 	void UpdateHUDHealth();
+	void UpdateHUDShield();
+	void UpdateHUDAmmo();
+
+	void SpawnDefaultWeapon();
 
 protected:
 	virtual void BeginPlay() override;
@@ -71,6 +75,8 @@ protected:
 	// Poll for any relevant classes and initialize our HUD
 	void PollInit();
 	void RotateInPlace(float DeltaTime);
+
+	void DropOrDestroyWeapon(AWeapon* Weapon);
 
 	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
 	class UInputMappingContext* PlayerInputMapping;
@@ -159,11 +165,24 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Player Stats")
 	float MaxHealth = 100.0f;
 
-	UPROPERTY(ReplicatedUsing = OnRep_Health, VisibleAnywhere, Category = "Player Stats")
+	UPROPERTY(ReplicatedUsing = OnRep_Health, EditAnywhere, Category = "Player Stats")
 	float Health = 100.0f;
 
 	UFUNCTION()
 	void OnRep_Health(float LastHealth);
+
+	/*
+	 * Player Shield
+	 */
+
+	UPROPERTY(EditAnywhere, Category = "Player Stats")
+	float MaxShield = 100.0f;
+
+	UPROPERTY(ReplicatedUsing = OnRep_Shield, EditAnywhere, Category = "Player Stats")
+	float Shield = 100.0f;
+
+	UFUNCTION()
+	void OnRep_Shield(float LastShield);
 
 	TObjectPtr<class ABlasterPlayerController> BlasterPlayerController;
 
@@ -217,6 +236,13 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	UStaticMeshComponent* AttachedGrenade;
 
+	/*
+	 * Default Weapon
+	 */
+
+	 UPROPERTY(EditAnywhere)
+	 TSubclassOf<AWeapon> DefaultWeaponClass;
+
 public:
 	void SetOverlappingWeapon(AWeapon* Weapon);
 	bool IsWeaponEquipped();
@@ -232,6 +258,9 @@ public:
 	float GetHealth() const {return Health;}
 	void SetHealth(float Amount) {Health = Amount;}
 	float GetMaxHealth() const {return MaxHealth;}
+	float GetShield() const {return Shield;}
+	void SetShield(float Amount) {Shield = Amount;}
+	float GetMaxShield() const {return MaxShield;}
 	ECombatState GetCombatState() const;
 	UCombatComponent* GetCombat() const {return Combat;}
 	bool GetDisableGameplay() const {return bDisableGameplay;}

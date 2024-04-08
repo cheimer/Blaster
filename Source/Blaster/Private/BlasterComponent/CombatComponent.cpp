@@ -29,6 +29,7 @@ void UCombatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(UCombatComponent, EquippedWeapon);
+	DOREPLIFETIME(UCombatComponent, SecondaryWeapon);
 	DOREPLIFETIME(UCombatComponent, bAiming);
 	DOREPLIFETIME_CONDITION(UCombatComponent, CarriedAmmo, COND_OwnerOnly);
 	DOREPLIFETIME(UCombatComponent, CombatState);
@@ -188,13 +189,29 @@ void UCombatComponent::ServerSetAiming_Implementation(bool bAimingParam)
 	}
 }
 
-void UCombatComponent::EquipWeapon(AWeapon* EquipWeaponParam)
+void UCombatComponent::EquipWeapon(AWeapon* InEquipWeapon)
 {
-	if(!Character || !EquipWeaponParam) return;
+	if(!Character || !InEquipWeapon) return;
 	if(CombatState != ECombatState::ECS_Unoccupied) return;
 
+	if(EquippedWeapon && !SecondaryWeapon)
+	{
+		EquipSecondaryWeapon(InEquipWeapon);
+	}
+	else
+	{
+		EquipPrimaryWeapon(InEquipWeapon);
+	}
+
+	Character->GetCharacterMovement()->bOrientRotationToMovement = false;
+	Character->bUseControllerRotationYaw = true;
+}
+
+void UCombatComponent::EquipPrimaryWeapon(AWeapon* InEquipWeapon)
+{
+	if(!InEquipWeapon) return;
 	DropEquippedWeapon();
-	EquippedWeapon = EquipWeaponParam;
+	EquippedWeapon = InEquipWeapon;
 	EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
 
 	AttachActorToRightHand(EquippedWeapon);
@@ -203,12 +220,9 @@ void UCombatComponent::EquipWeapon(AWeapon* EquipWeaponParam)
 
 	UpdateCarriedAmmo();
 
-	PlayEquipWeaponSound();
-
 	ReloadEmptyWeapon();
 
-	Character->GetCharacterMovement()->bOrientRotationToMovement = false;
-	Character->bUseControllerRotationYaw = true;
+	PlayEquipWeaponSound(InEquipWeapon);
 }
 
 void UCombatComponent::OnRep_EquippedWeapon()
@@ -217,11 +231,51 @@ void UCombatComponent::OnRep_EquippedWeapon()
 	{
 		EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
 		AttachActorToRightHand(EquippedWeapon);
+		EquippedWeapon->SetHUDAmmo();
 
 		Character->GetCharacterMovement()->bOrientRotationToMovement = false;
 		Character->bUseControllerRotationYaw = true;
-		PlayEquipWeaponSound();
+		PlayEquipWeaponSound(EquippedWeapon);
 	}
+}
+
+void UCombatComponent::EquipSecondaryWeapon(AWeapon* InEquipWeapon)
+{
+	if(!InEquipWeapon) return;
+	SecondaryWeapon = InEquipWeapon;
+	SecondaryWeapon->SetWeaponState(EWeaponState::EWS_EquippedSecondary);
+
+	AttachActorToBackpack(InEquipWeapon);
+	SecondaryWeapon->SetOwner(Character);
+
+	PlayEquipWeaponSound(InEquipWeapon);
+}
+
+void UCombatComponent::OnRep_SecondaryWeapon()
+{
+	if(SecondaryWeapon && Character)
+	{
+		SecondaryWeapon->SetWeaponState(EWeaponState::EWS_EquippedSecondary);
+		AttachActorToBackpack(SecondaryWeapon);
+
+		PlayEquipWeaponSound(SecondaryWeapon);
+	}
+}
+
+void UCombatComponent::SwapWeapon()
+{
+	AWeapon* TempWeapon = EquippedWeapon;
+	EquippedWeapon = SecondaryWeapon;
+	SecondaryWeapon = TempWeapon;
+
+	EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
+	AttachActorToRightHand(EquippedWeapon);
+	EquippedWeapon->SetHUDAmmo();
+	UpdateCarriedAmmo();
+	PlayEquipWeaponSound(EquippedWeapon);
+
+	SecondaryWeapon->SetWeaponState(EWeaponState::EWS_EquippedSecondary);
+	AttachActorToBackpack(SecondaryWeapon);
 }
 
 void UCombatComponent::DropEquippedWeapon()
@@ -259,6 +313,16 @@ void UCombatComponent::AttachActorToLeftHand(AActor* ActorToAttach)
 	}
 }
 
+void UCombatComponent::AttachActorToBackpack(AActor* ActorToAttach)
+{
+	if(!Character || !Character->GetMesh() || !ActorToAttach) return;
+	const USkeletalMeshSocket* BackpackSocket =  Character->GetMesh()->GetSocketByName(FName("BackpackSocket"));
+	if(BackpackSocket)
+	{
+		BackpackSocket->AttachActor(ActorToAttach, Character->GetMesh());
+	}
+}
+
 void UCombatComponent::UpdateCarriedAmmo()
 {
 	if(!EquippedWeapon) return;
@@ -273,11 +337,11 @@ void UCombatComponent::UpdateCarriedAmmo()
 		Controller->SetHUDCarriedAmmo(CarriedAmmo);
 	}
 }
-void UCombatComponent::PlayEquipWeaponSound()
+void UCombatComponent::PlayEquipWeaponSound(AWeapon* InEquipWeapon)
 {
-	if(Character && EquippedWeapon && EquippedWeapon->EquipSound)
+	if(Character && InEquipWeapon && InEquipWeapon->EquipSound)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, EquippedWeapon->EquipSound, Character->GetActorLocation());
+		UGameplayStatics::PlaySoundAtLocation(this, InEquipWeapon->EquipSound, Character->GetActorLocation());
 	}
 }
 
@@ -673,4 +737,9 @@ void UCombatComponent::TraceUnderCrosshairs(FHitResult& TraceHitResult)
 			TraceHitResult.ImpactPoint = End;
 		}
 	}
+}
+
+bool UCombatComponent::ShouldSwapWeapon()
+{
+	return (EquippedWeapon && SecondaryWeapon);
 }
