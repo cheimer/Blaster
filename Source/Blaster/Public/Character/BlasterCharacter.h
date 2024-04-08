@@ -45,6 +45,8 @@ public:
 	UFUNCTION(BlueprintImplementableEvent)
 	void ShowSniperScopeWidget(bool bShowScope);
 
+	void UpdateHUDHealth();
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -65,7 +67,7 @@ protected:
 
 	UFUNCTION()
 	void ReceiveDamage(AActor* DamagedActor, float Damage, const class UDamageType* DamageType, class AController* InstigatedBy, AActor* DamageCauser);
-	void UpdateHUDHealth();
+
 	// Poll for any relevant classes and initialize our HUD
 	void PollInit();
 	void RotateInPlace(float DeltaTime);
@@ -103,6 +105,9 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	class UCombatComponent* Combat;
+
+	UPROPERTY(VisibleAnywhere)
+	class UBuffComponent* Buff;
 
 	UPROPERTY(ReplicatedUsing = OnRep_OverlappingWeapon)
 	class AWeapon* OverlappingWeapon;
@@ -158,7 +163,7 @@ private:
 	float Health = 100.0f;
 
 	UFUNCTION()
-	void OnRep_Health();
+	void OnRep_Health(float LastHealth);
 
 	TObjectPtr<class ABlasterPlayerController> BlasterPlayerController;
 
@@ -225,11 +230,13 @@ public:
 	bool ShouldRotateRootBone() const {return bRotateRootBone;}
 	bool IsEliminated() const {return bEliminated;}
 	float GetHealth() const {return Health;}
+	void SetHealth(float Amount) {Health = Amount;}
 	float GetMaxHealth() const {return MaxHealth;}
 	ECombatState GetCombatState() const;
 	UCombatComponent* GetCombat() const {return Combat;}
 	bool GetDisableGameplay() const {return bDisableGameplay;}
 	UAnimMontage* GetReloadMontage() const {return ReloadMontage;}
 	UStaticMeshComponent* GetAttachedGrenade() const {return AttachedGrenade;}
+	UBuffComponent* GetBuff() const {return Buff;}
 
 };
