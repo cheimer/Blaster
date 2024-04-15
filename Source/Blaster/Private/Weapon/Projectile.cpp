@@ -5,7 +5,6 @@
 
 #include "NiagaraFunctionLibrary.h"
 #include "Blaster/Blaster.h"
-#include "Character/BlasterCharacter.h"
 #include "Components/BoxComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -27,6 +26,24 @@ AProjectile::AProjectile()
 	CollisionBox->SetCollisionResponseToChannel(ECC_SkeletalMesh, ECR_Block);
 
 }
+
+#if WITH_EDITOR
+void AProjectile::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	const FName PropertyName = PropertyChangedEvent.Property ? PropertyChangedEvent.Property->GetFName() : NAME_None;
+	if(PropertyName == GET_MEMBER_NAME_CHECKED(AProjectile, InitialSpeed))
+	{
+		if(ProjectileMovementComponent)
+		{
+			ProjectileMovementComponent->InitialSpeed = InitialSpeed;
+			ProjectileMovementComponent->MaxSpeed = InitialSpeed;
+		}
+	}
+
+}
+#endif
 
 void AProjectile::BeginPlay()
 {

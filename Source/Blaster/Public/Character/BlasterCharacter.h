@@ -31,6 +31,7 @@ public:
 	void PlayHitReactMontage();
 	void PlayEliminatedMontage();
 	void PlayThrowGrenadeMontage();
+	void PlaySwapMontage();
 
 	virtual void OnRep_ReplicatedMovement() override;
 
@@ -50,6 +51,11 @@ public:
 	void UpdateHUDAmmo();
 
 	void SpawnDefaultWeapon();
+
+	UPROPERTY()
+	TMap<FName, class UBoxComponent*> HitCollisionBoxes;
+
+	bool bFinishedSwapping = false;
 
 protected:
 	virtual void BeginPlay() override;
@@ -77,6 +83,46 @@ protected:
 	void RotateInPlace(float DeltaTime);
 
 	void DropOrDestroyWeapon(AWeapon* Weapon);
+
+	/*
+	 * Hit boxes for server rewind
+	*/
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* head;
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* pelvis;
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* spine_02;
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* spine_03;
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* upperarm_l;
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* upperarm_r;
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* lowerarm_l;
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* lowerarm_r;
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* hand_l;
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* hand_r;
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* backpack;
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* blanket;
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* thigh_l;
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* thigh_r;
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* calf_l;
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* calf_r;
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* foot_l;
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* foot_r;
 
 	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
 	class UInputMappingContext* PlayerInputMapping;
@@ -115,6 +161,9 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	class UBuffComponent* Buff;
 
+	UPROPERTY(VisibleAnywhere)
+	class ULagCompensationComponent* LagCompensation;
+
 	UPROPERTY(ReplicatedUsing = OnRep_OverlappingWeapon)
 	class AWeapon* OverlappingWeapon;
 
@@ -135,15 +184,17 @@ private:
 	void TurnInPlace(float DeltaTime);
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
-	class UAnimMontage* FireWeaponMontage;
+	UAnimMontage* FireWeaponMontage;
 	UPROPERTY(EditAnywhere, Category = "Combat")
-	class UAnimMontage* ReloadMontage;
+	UAnimMontage* ReloadMontage;
 	UPROPERTY(EditAnywhere, Category = "Combat")
-	class UAnimMontage* HitReactMontage;
+	UAnimMontage* HitReactMontage;
 	UPROPERTY(EditAnywhere, Category = "Combat")
-	class UAnimMontage* EliminatedMontage;
+	UAnimMontage* EliminatedMontage;
 	UPROPERTY(EditAnywhere, Category = "Combat")
-	class UAnimMontage* ThrowGrenadeMontage;
+	UAnimMontage* ThrowGrenadeMontage;
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	UAnimMontage* SwapMontage;
 
 	void HideCameraIfCharacterClose();
 
@@ -267,5 +318,7 @@ public:
 	UAnimMontage* GetReloadMontage() const {return ReloadMontage;}
 	UStaticMeshComponent* GetAttachedGrenade() const {return AttachedGrenade;}
 	UBuffComponent* GetBuff() const {return Buff;}
+	bool IsLocallyReloading();
+	ULagCompensationComponent* GetLagCompensation() const {return LagCompensation;}
 
 };

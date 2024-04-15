@@ -16,6 +16,22 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void Destroyed() override;
 
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+
+	UPROPERTY(EditAnywhere)
+	float InitialSpeed = 15000.0f;
+
+	float Damage = 10.0f;
+
+	/*
+	 * used server rewind
+	 */
+	bool bUseServerSideRewind = false;
+	FVector_NetQuantize TraceStart;
+	FVector_NetQuantize100 InitialVelocity;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -26,9 +42,6 @@ protected:
 	void StartDestroyTimer();
 	void DestroyTimerFinished();
 	void ExplodeDamage();
-
-	UPROPERTY(EditAnywhere)
-	float Damage = 10.0f;
 
 	UPROPERTY(EditAnywhere)
 	float DamageInnerRadius = 200.0f;

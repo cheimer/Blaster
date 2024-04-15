@@ -18,6 +18,16 @@ enum class EWeaponState : uint8
 	EWS_MAX UMETA(DisplayName = "DefaultMax")
 };
 
+UENUM(BlueprintType)
+enum class EFireType : uint8
+{
+	EFT_HitScan UMETA(DisplayName = "HitScan Weapon"),
+	EFT_Projectile UMETA(DisplayName = "Projectile Weapon"),
+	EFT_Shotgun UMETA(DisplayName = "Shotgun Weapon"),
+
+	EFT_MAX UMETA(DisplayName = "DefaultMax")
+};
+
 /**
  *
  */
@@ -85,6 +95,17 @@ public:
 
 	bool bDestroyWeapon = false;
 
+	UPROPERTY(EditAnywhere)
+	EFireType FireType;
+
+	UPROPERTY(EditAnywhere, Category = "Scatter")
+	bool bUseScatter = false;
+
+	FVector TraceEndWithScatter(const FVector& HitTarget);
+
+	UFUNCTION()
+	void OnPingTooHigh(bool bPingTooHigh);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
@@ -103,6 +124,25 @@ protected:
 	virtual void OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
+	TObjectPtr<class ABlasterCharacter> BlasterOwnerCharacter;
+	TObjectPtr<class ABlasterPlayerController> BlasterOwnerController;
+
+	/*
+	 * Trace end with scatter
+	 */
+
+	UPROPERTY(EditAnywhere, Category = "Scatter")
+	float DistanceToSphere = 800.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Scatter")
+	float SphereRadius = 75.0f;
+
+	UPROPERTY(EditAnywhere)
+	float Damage = 20.0f;
+
+	UPROPERTY(Replicated, EditAnywhere)
+	bool bUseServerSideRewind = false;
+
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Weapon Properties")
 	class USkeletalMeshComponent* WeaponMesh;
@@ -116,9 +156,6 @@ private:
 	UPROPERTY(EditAnywhere, Category = "WeaponProperties")
 	class UAnimationAsset* FireAnimation;
 
-	TObjectPtr<class ABlasterCharacter> BlasterOwnerCharacter;
-	TObjectPtr<class ABlasterPlayerController> BlasterOwnerController;
-
 	UPROPERTY(ReplicatedUsing = OnRep_WeaponState, VisibleAnywhere, Category = "Weapon Properties")
 	EWeaponState WeaponState;
 
@@ -128,16 +165,22 @@ private:
 	UPROPERTY(EditAnywhere)
 	TSubclassOf<class ACasing> CasingClass;
 
-	UPROPERTY(EditAnywhere, ReplicatedUsing = OnRep_Ammo)
+	UPROPERTY(EditAnywhere)
 	int32 Ammo = 30;
-
-	UFUNCTION()
-	void OnRep_Ammo();
 
 	void SpendRound();
 
+	UFUNCTION(Client, Reliable)
+	void ClientUpdateAmmo(int32 ServerAmmo);
+
+	UFUNCTION(Client, Reliable)
+	void ClientAddAmmo(int32 AmmoToAdd);
+
 	UPROPERTY(EditAnywhere)
 	int32 MagCapacity = 30;
+
+	// Num of unprocessed server requests for ammo
+	int32 Sequence = 0;
 
 	UPROPERTY(EditAnywhere)
 	EWeaponType WeaponType;
@@ -153,5 +196,6 @@ public:
 	EWeaponType GetWeaponType() const {return WeaponType;}
 	int32 GetAmmo() const {return Ammo;}
 	int32 GetMagCapacity() const {return MagCapacity;}
+	float GetDamage() const {return Damage;}
 
 };
