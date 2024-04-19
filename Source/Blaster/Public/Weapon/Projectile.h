@@ -23,7 +23,13 @@ public:
 	UPROPERTY(EditAnywhere)
 	float InitialSpeed = 15000.0f;
 
+	// Only Set Grenades, Rockets
+	UPROPERTY(EditAnywhere)
 	float Damage = 10.0f;
+
+	// Doesn't Grenades, Rockets
+	UPROPERTY(EditAnywhere)
+	float HeadShotDamage = Damage * 2.0f;
 
 	/*
 	 * used server rewind

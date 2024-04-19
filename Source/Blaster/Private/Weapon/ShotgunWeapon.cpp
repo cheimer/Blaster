@@ -31,6 +31,7 @@ void AShotgunWeapon::FireShotgun(const TArray<FVector_NetQuantize>& HitTargets)
 
 		// Character - Numbers of hit by bullet
 		TMap<ABlasterCharacter*, uint32> HitMap;
+		TMap<ABlasterCharacter*, uint32> HeadShotHitMap;
 
 		for(FVector_NetQuantize HitTarget : HitTargets)
 		{
@@ -40,13 +41,15 @@ void AShotgunWeapon::FireShotgun(const TArray<FVector_NetQuantize>& HitTargets)
 			ABlasterCharacter* BlasterCharacter = Cast<ABlasterCharacter>(FireHit.GetActor());
 			if(BlasterCharacter)
 			{
-				if(HitMap.Contains(BlasterCharacter))
+				const bool bHeadShot = FireHit.BoneName.ToString() == FString("Head");
+
+				if(bHeadShot)
 				{
-					HitMap[BlasterCharacter]++;
+					AddMap(HeadShotHitMap, BlasterCharacter);
 				}
 				else
 				{
-					HitMap.Emplace(BlasterCharacter, 1);
+					AddMap(HitMap, BlasterCharacter);
 				}
 
 				if(ImpactParticle)
@@ -65,19 +68,46 @@ void AShotgunWeapon::FireShotgun(const TArray<FVector_NetQuantize>& HitTargets)
 
 		TArray<ABlasterCharacter*> HitCharacter;
 
+		TMap<ABlasterCharacter*, float> DamageMap;
 		for(auto HitPair : HitMap)
 		{
-			if(HitPair.Key && InstigatorController)
+			if(HitPair.Key)
+			{
+				DamageMap.Emplace(HitPair.Key, HitPair.Value * Damage);
+
+				HitCharacter.AddUnique(HitPair.Key);
+			}
+		}
+		for(auto HeadShotHitPair : HeadShotHitMap)
+		{
+			if(HeadShotHitPair.Key)
+			{
+				if(DamageMap.Contains(HeadShotHitPair.Key))
+				{
+					DamageMap[HeadShotHitPair.Key] += HeadShotHitPair.Value * HeadShotDamage;
+				}
+				else
+				{
+					DamageMap.Emplace(HeadShotHitPair.Key, HeadShotHitPair.Value * HeadShotDamage);
+				}
+
+				HitCharacter.AddUnique(HeadShotHitPair.Key);
+			}
+		}
+		for(auto DamagePair : DamageMap)
+		{
+			if(DamagePair.Key && InstigatorController)
 			{
 				bool bCauseAuthDamage = !bUseServerSideRewind || OwnerPawn->IsLocallyControlled();
 				if(HasAuthority() && bCauseAuthDamage)
 				{
-					UGameplayStatics::ApplyDamage(HitPair.Key, Damage * HitPair.Value,
+					UGameplayStatics::ApplyDamage(DamagePair.Key, DamagePair.Value,
 						InstigatorController, this, UDamageType::StaticClass());
 				}
-				HitCharacter.Emplace(HitPair.Key);
+
 			}
 		}
+
 		if(!HasAuthority() && bUseServerSideRewind)
 		{
 			BlasterOwnerCharacter = !BlasterOwnerCharacter ? Cast<ABlasterCharacter>(OwnerPawn) : BlasterOwnerCharacter;
@@ -117,5 +147,17 @@ void AShotgunWeapon::ShotgunTraceEndWithScatter(const FVector& HitTarget, TArray
 		ToEndLoc = TraceStart + ToEndLoc * TRACE_LENGTH / ToEndLoc.Size();
 
 		OutHitTargets.Emplace(ToEndLoc);
+	}
+}
+
+void AShotgunWeapon::AddMap(TMap<ABlasterCharacter*, uint32>& Map, ABlasterCharacter* BlasterCharacter)
+{
+	if(Map.Contains(BlasterCharacter))
+	{
+		Map[BlasterCharacter]++;
+	}
+	else
+	{
+		Map.Emplace(BlasterCharacter, 1);
 	}
 }

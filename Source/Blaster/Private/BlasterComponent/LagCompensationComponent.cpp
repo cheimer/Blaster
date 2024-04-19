@@ -459,14 +459,16 @@ void ULagCompensationComponent::EnableCharacterMeshCollision(ABlasterCharacter* 
 }
 
 void ULagCompensationComponent::ServerScoreRequest_Implementation(ABlasterCharacter* HitCharacter,
-                                                                  const FVector_NetQuantize& TraceStart, const FVector_NetQuantize& HitLocation, float HitTime, AWeapon* DamageCauser)
+	const FVector_NetQuantize& TraceStart, const FVector_NetQuantize& HitLocation, float HitTime)
 {
 	FServerSideRewindResult Confirm = ServerSideRewind(HitCharacter, TraceStart, HitLocation, HitTime);
 
-	if(Confirm.bHitConfirmed && HitCharacter && DamageCauser && Character)
+	if(Confirm.bHitConfirmed && HitCharacter && Character && Character->GetEquippedWeapon())
 	{
-		UGameplayStatics::ApplyDamage(HitCharacter, DamageCauser->GetDamage(),
-			Character->GetController(), DamageCauser, UDamageType::StaticClass());
+		const float Damage = Confirm.bHeadShot ? Character->GetEquippedWeapon()->GetHeadShotDamage() : Character->GetEquippedWeapon()->GetDamage();
+
+		UGameplayStatics::ApplyDamage(HitCharacter, Damage,
+			Character->GetController(), Character->GetEquippedWeapon(), UDamageType::StaticClass());
 	}
 }
 
@@ -477,7 +479,9 @@ void ULagCompensationComponent::ServerProjectileScoreRequest_Implementation(ABla
 
 	if(Confirm.bHitConfirmed && HitCharacter && Character && Character->GetEquippedWeapon())
 	{
-		UGameplayStatics::ApplyDamage(HitCharacter, Character->GetEquippedWeapon()->GetDamage(),
+		const float Damage = Confirm.bHeadShot ? Character->GetEquippedWeapon()->GetHeadShotDamage() : Character->GetEquippedWeapon()->GetDamage();
+
+		UGameplayStatics::ApplyDamage(HitCharacter, Damage,
 			Character->GetController(), Character->GetEquippedWeapon(), UDamageType::StaticClass());
 	}
 }
@@ -494,7 +498,7 @@ void ULagCompensationComponent::ServerShotgunScoreRequest_Implementation(const T
 		float TotalDamage = 0.0f;
 		if(Confirm.HeadShots.Contains(HitCharacter))
 		{
-			float HeadShotDamage = Confirm.HeadShots[HitCharacter] * HitCharacter->GetEquippedWeapon()->GetDamage();
+			float HeadShotDamage = Confirm.HeadShots[HitCharacter] * HitCharacter->GetEquippedWeapon()->GetHeadShotDamage();
 			TotalDamage += HeadShotDamage;
 		}
 		if(Confirm.BodyShots.Contains(HitCharacter))

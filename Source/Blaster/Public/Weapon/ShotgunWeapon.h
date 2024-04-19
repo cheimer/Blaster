@@ -22,5 +22,7 @@ public:
 private:
 	UPROPERTY(EditAnywhere, Category = "Scatter")
 	uint32 NumOfPellets = 10;
+
+	void AddMap(TMap<class ABlasterCharacter*, uint32>& Map, ABlasterCharacter* BlasterCharacter);
 	
 };

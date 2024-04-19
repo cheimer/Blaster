@@ -67,7 +67,7 @@ void ABlasterHUD::AddEliAnnouncement(FString AttackerName, FString VictimName)
 			FTimerHandle EliMsgTimer;
 			FTimerDelegate EliMsgDelegate;
 
-			EliMsgDelegate.BindUFunction(this, FName("EliAnnouncementTimerFinished"));
+			EliMsgDelegate.BindUFunction(this, FName("EliAnnouncementTimerFinished"), EliAnnouncementWidget);
 			GetWorldTimerManager().SetTimer(EliMsgTimer, EliMsgDelegate, EliAnnouncementTime, false);
 		}
 	}
