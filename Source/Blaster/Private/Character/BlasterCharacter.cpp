@@ -9,6 +9,8 @@
 #include "InputMappingContext.h"
 #include "InputActionValue.h"
 #include "EnhancedInputSubsystems.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
 #include "Blaster/Blaster.h"
 #include "BlasterComponent/BuffComponent.h"
 #include "BlasterComponent/CombatComponent.h"
@@ -18,6 +20,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/WidgetComponent.h"
 #include "GameMode/BlasterGameMode.h"
+#include "GameState/BlasterGameState.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Net/UnrealNetwork.h"
@@ -228,6 +231,7 @@ void ABlasterCharacter::BeginPlay()
 	{
 		AttachedGrenade->SetVisibility(false);
 	}
+
 }
 
 void ABlasterCharacter::PossessedBy(AController* NewController)
@@ -287,7 +291,14 @@ void ABlasterCharacter::PollInit()
 			BlasterPlayerState->AddToScore(0.0f);
 			BlasterPlayerState->AddToDefeats(0);
 		}
+
+		ABlasterGameState* BlasterGameState = Cast<ABlasterGameState>(UGameplayStatics::GetGameState(this));
+		if(BlasterGameState && BlasterGameState->TopScoringPlayers.Contains(BlasterPlayerState))
+		{
+			MulticastGainedTheLead();
+		}
 	}
+
 }
 
 void ABlasterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -367,7 +378,7 @@ void ABlasterCharacter::Eliminated(bool bPlayerLeftGame)
 		}
 	}
 
-	MultiEliminated(bPlayerLeftGame);
+	MulticastEliminated(bPlayerLeftGame);
 }
 
 void ABlasterCharacter::DropOrDestroyWeapon(AWeapon* Weapon)
@@ -383,7 +394,7 @@ void ABlasterCharacter::DropOrDestroyWeapon(AWeapon* Weapon)
 	}
 }
 
-void ABlasterCharacter::MultiEliminated_Implementation(bool bPlayerLeftGame)
+void ABlasterCharacter::MulticastEliminated_Implementation(bool bPlayerLeftGame)
 {
 	bLeftGame = bPlayerLeftGame;
 	if(BlasterPlayerController)
@@ -437,6 +448,10 @@ void ABlasterCharacter::MultiEliminated_Implementation(bool bPlayerLeftGame)
 	{
 
 		ShowSniperScopeWidget(false);
+	}
+	if(CrownComponent)
+	{
+		CrownComponent->DestroyComponent();
 	}
 
 	GetWorldTimerManager().SetTimer(EliminatedTimer, this, &ThisClass::EliminatedTimerFinished, EliminatedDelay);
@@ -989,6 +1004,29 @@ void ABlasterCharacter::OnRep_OverlappingWeapon(AWeapon* LastWeapon)
 	if(OverlappingWeapon)
 	{
 		OverlappingWeapon->ShowPickupWidget(true);
+	}
+}
+
+void ABlasterCharacter::MulticastGainedTheLead_Implementation()
+{
+	if(!CrownSystem) return;
+	if(!CrownComponent)
+	{
+		CrownComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(CrownSystem, GetCapsuleComponent(), FName(),
+			GetActorLocation() + FVector(0.0f, 0.0f, 110.0f), GetActorRotation(),
+			EAttachLocation::KeepWorldPosition, false);
+	}
+	if(CrownComponent)
+	{
+		CrownComponent->Activate();
+	}
+}
+
+void ABlasterCharacter::MulticastLostTheLead_Implementation()
+{
+	if(CrownComponent)
+	{
+		CrownComponent->DestroyComponent();
 	}
 }
 

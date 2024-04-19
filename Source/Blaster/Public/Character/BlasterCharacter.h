@@ -40,7 +40,7 @@ public:
 	void Eliminated(bool bPlayerLeftGame);
 
 	UFUNCTION(NetMulticast, Reliable)
-	void MultiEliminated(bool bPlayerLeftGame);
+	void MulticastEliminated(bool bPlayerLeftGame);
 
 	UPROPERTY(Replicated)
 	bool bDisableGameplay = false;
@@ -63,6 +63,12 @@ public:
 	void ServerLeaveGame();
 
 	FOnLeftGame OnLeftGame;
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastGainedTheLead();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastLostTheLead();
 
 protected:
 	virtual void BeginPlay() override;
@@ -280,7 +286,7 @@ private:
 	UMaterialInstance* DissolveMaterialInstance;
 
 	/*
-	 * Eli bot
+	 * Eli effects
 	 */
 
 	UPROPERTY(EditAnywhere)
@@ -288,6 +294,11 @@ private:
 
 	UPROPERTY(VisibleAnywhere)
 	UParticleSystemComponent* EliBotComponent;
+
+	UPROPERTY(EditAnywhere)
+	class UNiagaraSystem* CrownSystem;
+
+	TObjectPtr<class UNiagaraComponent> CrownComponent;
 
 	/*
 	 * Grenade
@@ -301,7 +312,7 @@ private:
 	 */
 
 	 UPROPERTY(EditAnywhere)
-	 TSubclassOf<AWeapon> DefaultWeaponClass;
+	 TSubclassOf<class AWeapon> DefaultWeaponClass;
 
 public:
 	void SetOverlappingWeapon(AWeapon* Weapon);
