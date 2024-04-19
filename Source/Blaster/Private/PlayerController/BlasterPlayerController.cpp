@@ -604,3 +604,41 @@ void ABlasterPlayerController::ShowReturnToMainMenu(const FInputActionValue& Val
 		}
 	}
 }
+
+void ABlasterPlayerController::BroadcastEli(APlayerState* Attacker, APlayerState* Victim)
+{
+	ClientEliAnnouncement(Attacker, Victim);
+}
+
+void ABlasterPlayerController::ClientEliAnnouncement_Implementation(APlayerState* Attacker, APlayerState* Victim)
+{
+	APlayerState* Self = GetPlayerState<APlayerState>();
+	if(Attacker && Victim && Self)
+	{
+		BlasterHUD = BlasterHUD == nullptr ? Cast<ABlasterHUD>(GetHUD()) : BlasterHUD;
+		if(BlasterHUD)
+		{
+			if(Attacker == Self && Victim != Self)
+			{
+				BlasterHUD->AddEliAnnouncement("You", Victim->GetPlayerName());
+				return;
+			}
+			if(Victim == Self && Attacker != Self)
+			{
+				BlasterHUD->AddEliAnnouncement(Attacker->GetPlayerName(), "You");
+				return;
+			}
+			if(Attacker == Victim && Attacker == Self)
+			{
+				BlasterHUD->AddEliAnnouncement("You", "Yourself");
+				return;
+			}
+			if(Attacker == Victim && Attacker != Self)
+			{
+				BlasterHUD->AddEliAnnouncement(Attacker->GetPlayerName(), "Themselves");
+				return;
+			}
+			BlasterHUD->AddEliAnnouncement(Attacker->GetPlayerName(), Victim->GetPlayerName());
+		}
+	}
+}

@@ -76,6 +76,8 @@ void ABlasterGameMode::PlayerEliminated(ABlasterCharacter* EliCharacter,
 {
 	ABlasterPlayerState* AttackerPlayerState = AttackerController ? Cast<ABlasterPlayerState>(AttackerController->PlayerState) : nullptr;
 	ABlasterPlayerState* VictimPlayerState = VictimController ? Cast<ABlasterPlayerState>(VictimController->PlayerState) : nullptr;
+	if(!AttackerPlayerState || !VictimPlayerState) return;
+
 	ABlasterGameState* BlasterGameState = GetGameState<ABlasterGameState>();
 
 	if(AttackerPlayerState && AttackerPlayerState != VictimPlayerState && BlasterGameState)
@@ -117,6 +119,15 @@ void ABlasterGameMode::PlayerEliminated(ABlasterCharacter* EliCharacter,
 	if(EliCharacter)
 	{
 		EliCharacter->Eliminated(false);
+	}
+
+	for(FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		ABlasterPlayerController* BlasterPlayerController = Cast<ABlasterPlayerController>(*It);
+		if(BlasterPlayerController && AttackerPlayerState && VictimPlayerState)
+		{
+			BlasterPlayerController->BroadcastEli(AttackerPlayerState, VictimPlayerState);
+		}
 	}
 }
 

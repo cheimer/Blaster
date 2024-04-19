@@ -4,8 +4,12 @@
 #include "HUD/BlasterHUD.h"
 
 #include "Blueprint/UserWidget.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
+#include "Components/CanvasPanelSlot.h"
+#include "Components/HorizontalBox.h"
 #include "HUD/Announcement.h"
 #include "HUD/CharacterOverlayWidget.h"
+#include "HUD/EliAnnouncementWidget.h"
 
 void ABlasterHUD::BeginPlay()
 {
@@ -15,24 +19,66 @@ void ABlasterHUD::BeginPlay()
 
 void ABlasterHUD::AddCharacterOverlay()
 {
-	APlayerController* PlayerController = GetOwningPlayerController();
-	if(PlayerController && CharacterOverlayClass)
+	OwningPlayerController = OwningPlayerController == nullptr ? GetOwningPlayerController() : OwningPlayerController;
+	if(OwningPlayerController && CharacterOverlayClass)
 	{
-		CharacterOverlay = CreateWidget<UCharacterOverlayWidget>(PlayerController, CharacterOverlayClass);
+		CharacterOverlay = CreateWidget<UCharacterOverlayWidget>(OwningPlayerController, CharacterOverlayClass);
 		CharacterOverlay->AddToViewport();
 	}
-
 }
 
 void ABlasterHUD::AddAnnouncement()
 {
-	APlayerController* PlayerController = GetOwningPlayerController();
-	if(PlayerController && AnnouncementClass)
+	OwningPlayerController = OwningPlayerController == nullptr ? GetOwningPlayerController() : OwningPlayerController;
+	if(OwningPlayerController && AnnouncementClass)
 	{
-		Announcement = CreateWidget<UAnnouncement>(PlayerController, AnnouncementClass);
+		Announcement = CreateWidget<UAnnouncement>(OwningPlayerController, AnnouncementClass);
 		Announcement->AddToViewport();
 	}
+}
 
+void ABlasterHUD::AddEliAnnouncement(FString AttackerName, FString VictimName)
+{
+	OwningPlayerController = OwningPlayerController == nullptr ? GetOwningPlayerController() : OwningPlayerController;
+	if(OwningPlayerController && EliAnnouncementClass)
+	{
+		UEliAnnouncementWidget* EliAnnouncementWidget = CreateWidget<UEliAnnouncementWidget>(OwningPlayerController, EliAnnouncementClass);
+		if(EliAnnouncementWidget)
+		{
+			EliAnnouncementWidget->SetEliAnnouncementText(AttackerName, VictimName);
+			EliAnnouncementWidget->AddToViewport();
+
+			for(UEliAnnouncementWidget* Msg : EliMessages)
+			{
+				if(Msg && Msg->AnnouncementBox)
+				{
+					UCanvasPanelSlot* CanvasSlot = UWidgetLayoutLibrary::SlotAsCanvasSlot(Msg->AnnouncementBox);
+					if(CanvasSlot)
+					{
+						FVector2D Position = CanvasSlot->GetPosition();
+						FVector2D NewPosition(CanvasSlot->GetPosition().X, Position.Y - CanvasSlot->GetSize().Y);
+						CanvasSlot->SetPosition(NewPosition);
+					}
+				}
+			}
+
+			EliMessages.Emplace(EliAnnouncementWidget);
+
+			FTimerHandle EliMsgTimer;
+			FTimerDelegate EliMsgDelegate;
+
+			EliMsgDelegate.BindUFunction(this, FName("EliAnnouncementTimerFinished"));
+			GetWorldTimerManager().SetTimer(EliMsgTimer, EliMsgDelegate, EliAnnouncementTime, false);
+		}
+	}
+}
+
+void ABlasterHUD::EliAnnouncementTimerFinished(UEliAnnouncementWidget* MsgToRemove)
+{
+	if(MsgToRemove)
+	{
+		MsgToRemove->RemoveFromParent();
+	}
 }
 
 void ABlasterHUD::DrawHUD()

@@ -42,6 +42,8 @@ public:
 
 	FHighPingDelegate HighPingDelegate;
 
+	void BroadcastEli(APlayerState* Attacker, APlayerState* Victim);
+
 protected:
 	virtual void BeginPlay() override;
 	void PollInit();
@@ -87,6 +89,9 @@ protected:
 	void CheckPing(float DeltaTime);
 
 	void ShowReturnToMainMenu(const FInputActionValue& Value);
+
+	UFUNCTION(Client, Reliable)
+	void ClientEliAnnouncement(APlayerState* Attacker, APlayerState* Victim);
 
 private:
 	TObjectPtr<class ABlasterHUD> BlasterHUD;
