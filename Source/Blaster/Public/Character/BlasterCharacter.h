@@ -11,6 +11,8 @@
 #include "Interfaces/InteractWithCrosshairsInterface.h"
 #include "BlasterCharacter.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLeftGame);
+
 UCLASS()
 class BLASTER_API ABlasterCharacter : public ACharacter, public IInteractWithCrosshairsInterface
 {
@@ -35,10 +37,10 @@ public:
 
 	virtual void OnRep_ReplicatedMovement() override;
 
-	void Eliminated();
+	void Eliminated(bool bPlayerLeftGame);
 
 	UFUNCTION(NetMulticast, Reliable)
-	void MultiEliminated();
+	void MultiEliminated(bool bPlayerLeftGame);
 
 	UPROPERTY(Replicated)
 	bool bDisableGameplay = false;
@@ -56,6 +58,11 @@ public:
 	TMap<FName, class UBoxComponent*> HitCollisionBoxes;
 
 	bool bFinishedSwapping = false;
+
+	UFUNCTION(Server, Reliable)
+	void ServerLeaveGame();
+
+	FOnLeftGame OnLeftGame;
 
 protected:
 	virtual void BeginPlay() override;
@@ -245,6 +252,8 @@ private:
 	float EliminatedDelay = 3.0f;
 
 	void EliminatedTimerFinished();
+
+	bool bLeftGame = false;
 
 	/*
 	 * Dissolve Effect

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "InputActionValue.h"
 #include "BlasterPlayerController.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FHighPingDelegate, bool, bPingTooHigh);
@@ -47,6 +48,14 @@ protected:
 
 	void SetHUDTime();
 
+	virtual void SetupInputComponent() override;
+
+	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
+	class UInputMappingContext* ControllerInputMapping;
+
+	UPROPERTY(EditDefaultsOnly, Category = "EnhancedInput")
+	class UInputAction* QuitAction;
+
 	/*
 	 * Sync time between Client And Server
 	 */
@@ -77,10 +86,23 @@ protected:
 	void StopHighPingWarning();
 	void CheckPing(float DeltaTime);
 
+	void ShowReturnToMainMenu(const FInputActionValue& Value);
+
 private:
 	TObjectPtr<class ABlasterHUD> BlasterHUD;
 
 	TObjectPtr<class ABlasterGameMode> BlasterGameMode;
+
+	/*
+	 * Return to Main Menu
+	 */
+
+	UPROPERTY(EditAnywhere, Category = HUD)
+	TSubclassOf<class UUserWidget> ReturnToMainMenuWidgetClass;
+
+	TObjectPtr<class UReturnToMainMenuWidget> ReturnToMainMenuWidget;
+
+	bool bReturnToMainMenuOpen = false;
 
 	float LevelStartingTime = 0.0f;
 	float MatchTime = 0.0f;
