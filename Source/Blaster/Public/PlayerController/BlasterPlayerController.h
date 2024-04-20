@@ -34,8 +34,8 @@ public:
 
 	virtual float GetServerTime();
 	virtual void ReceivedPlayer() override;
-	void OnMatchStateSet(FName State);
-	void HandleMatchHasStarted();
+	void OnMatchStateSet(FName State, bool bTeamsMatch = false);
+	void HandleMatchHasStarted(bool bTeamsMatch = false);
 	void HandleCooldown();
 
 	float SingleTripTime = 0.0f;
@@ -43,6 +43,11 @@ public:
 	FHighPingDelegate HighPingDelegate;
 
 	void BroadcastEli(APlayerState* Attacker, APlayerState* Victim);
+
+	void HideTeamScores();
+	void InitTeamScores();
+	void SetHUDRedTeamScore(int32 RedScore);
+	void SetHUDBlueTeamScore(int32 BlueScore);
 
 protected:
 	virtual void BeginPlay() override;
@@ -92,6 +97,15 @@ protected:
 
 	UFUNCTION(Client, Reliable)
 	void ClientEliAnnouncement(APlayerState* Attacker, APlayerState* Victim);
+
+	UPROPERTY(ReplicatedUsing = "OnRep_bShowTeamScores")
+	bool bShowTeamScores = false;
+
+	UFUNCTION()
+	void OnRep_bShowTeamScores();
+
+	FString GetInfoText(const TArray<class ABlasterPlayerState*>& PlayerStates);
+	FString GetTeamsInfoText(class ABlasterGameState* GameState);
 
 private:
 	TObjectPtr<class ABlasterHUD> BlasterHUD;

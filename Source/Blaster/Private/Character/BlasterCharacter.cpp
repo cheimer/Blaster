@@ -889,6 +889,7 @@ void ABlasterCharacter::ReceiveDamage(AActor* DamagedActor, float Damage, const 
 	BlasterGameMode = BlasterGameMode == nullptr ? GetWorld()->GetAuthGameMode<ABlasterGameMode>() : BlasterGameMode;
 	if(bEliminated || !BlasterGameMode) return;
 	Damage = BlasterGameMode->CalculateDamage(InstigatedBy, GetController(),  Damage);
+	if(Damage <= 0.0f) return;
 
 	float DamageToHealth = Damage;
 	if(Shield > 0.0f)

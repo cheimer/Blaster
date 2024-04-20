@@ -43,6 +43,8 @@ public:
 
 	float LevelStartingTime = 0.0f;
 
+	bool bTeamsMatch = false;
+
 protected:
 	virtual void BeginPlay() override;
 
