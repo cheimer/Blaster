@@ -131,6 +131,11 @@ void ABlasterGameMode::PlayerEliminated(ABlasterCharacter* EliCharacter,
 	}
 }
 
+float ABlasterGameMode::CalculateDamage(AController* Attacker, AController* Victim, float BaseDamage)
+{
+	return BaseDamage;
+}
+
 void ABlasterGameMode::RequestRespawn(ACharacter* EliCharacter, AController* EliController)
 {
 	if(EliCharacter)

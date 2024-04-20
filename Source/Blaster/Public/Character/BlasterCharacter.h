@@ -6,6 +6,7 @@
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
 #include "BlasterTypes/CombatState.h"
+#include "BlasterTypes/Team.h"
 #include "BlasterTypes/TurningInPlace.h"
 #include "Components/TimelineComponent.h"
 #include "Interfaces/InteractWithCrosshairsInterface.h"
@@ -69,6 +70,8 @@ public:
 
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastLostTheLead();
+
+	void SetTeamColor(ETeam Team);
 
 protected:
 	virtual void BeginPlay() override;
@@ -181,6 +184,7 @@ private:
 	class AWeapon* OverlappingWeapon;
 
 	TObjectPtr<class ABlasterPlayerState> BlasterPlayerState;
+	TObjectPtr<class ABlasterGameMode> BlasterGameMode;
 
 	UFUNCTION()
 	void OnRep_OverlappingWeapon(AWeapon* LastWeapon);
@@ -282,8 +286,27 @@ private:
 	UMaterialInstanceDynamic* DynamicDissolveMaterialInstance;
 
 	// Material Instance Set on the Blueprint, used with the Dynamic Material Instance
-	UPROPERTY(EditAnywhere, Category = "Eliminated")
+	UPROPERTY(VisibleAnywhere, Category = "Eliminated")
 	UMaterialInstance* DissolveMaterialInstance;
+
+	/*
+	 * Team Colors
+	 */
+
+	UPROPERTY(EditAnywhere, Category = "Eliminated")
+	UMaterialInstance* RedDissolveMatInst;
+
+	UPROPERTY(EditAnywhere, Category = "Eliminated")
+	UMaterialInstance* RedMaterial;
+
+	UPROPERTY(EditAnywhere, Category = "Eliminated")
+	UMaterialInstance* BlueDissolveMatInst;
+
+	UPROPERTY(EditAnywhere, Category = "Eliminated")
+	UMaterialInstance* BlueMaterial;
+
+	UPROPERTY(EditAnywhere, Category = "Eliminated")
+	UMaterialInstance* OriginMaterial;
 
 	/*
 	 * Eli effects
@@ -313,6 +336,7 @@ private:
 
 	 UPROPERTY(EditAnywhere)
 	 TSubclassOf<class AWeapon> DefaultWeaponClass;
+
 
 public:
 	void SetOverlappingWeapon(AWeapon* Weapon);
