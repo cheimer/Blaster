@@ -109,6 +109,7 @@ protected:
 
 	void AttachActorToRightHand(AActor* ActorToAttach);
 	void AttachActorToLeftHand(AActor* ActorToAttach);
+	void AttachFlagToLeftHand(AWeapon* Flag);
 	void AttachActorToBackpack(AActor* ActorToAttach);
 
 	void UpdateCarriedAmmo();
@@ -240,7 +241,15 @@ private:
 	UPROPERTY(EditAnywhere)
 	int32 MaxGrenades = 4;
 
-	void UpdateHUDGranades();
+	void UpdateHUDGrenades();
+
+	UPROPERTY(ReplicatedUsing = "OnRep_bHoldingTheFlag")
+	bool bHoldingTheFlag = false;
+
+	UFUNCTION()
+	void OnRep_bHoldingTheFlag();
+
+	TObjectPtr<AWeapon> TheFlag;
 
 public:
 	int32 GetGrenades() const {return Grenades;}

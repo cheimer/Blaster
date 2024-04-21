@@ -98,7 +98,11 @@ protected:
 	void PollInit();
 	void RotateInPlace(float DeltaTime);
 
-	void DropOrDestroyWeapon(AWeapon* Weapon);
+	void DropOrDestroyWeapon(class AWeapon* Weapon);
+	void DropOrDestroyWeapons();
+
+	void OnPlayerStateInitialize();
+	void SetSpawnPoint();
 
 	/*
 	 * Hit boxes for server rewind
@@ -364,5 +368,8 @@ public:
 	UBuffComponent* GetBuff() const {return Buff;}
 	bool IsLocallyReloading();
 	ULagCompensationComponent* GetLagCompensation() const {return LagCompensation;}
+	bool IsHoldingFlag() const;
+	void SetHoldingFlag(bool InbHoldingFlag);
+	ETeam GetTeam();
 
 };

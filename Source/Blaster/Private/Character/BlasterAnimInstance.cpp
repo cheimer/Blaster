@@ -39,6 +39,7 @@ void UBlasterAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	TurningInPlace = BlasterCharacter->GetTurningInPlace();
 	bRotateRootBone = BlasterCharacter->ShouldRotateRootBone();
 	bEliminated = BlasterCharacter->IsEliminated();
+	bHoldingTheFlag = BlasterCharacter->IsHoldingFlag();
 
 	// Offset Yaw for stand equipped
 	FRotator AimRotation = BlasterCharacter->GetBaseAimRotation();
